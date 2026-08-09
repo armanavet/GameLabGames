@@ -85,9 +85,13 @@
     /* MOBILE_PAD / MOBILE_SIDE below must match this padding. Vertical keeps the
        board off the clue bar; horizontal keeps it off the screen edges. The clue
        bar and keyboard stay full-bleed, as designed. */
+    /* Top-aligned, not centred. The board is width-constrained on a phone, so
+       centring split the leftover height evenly and pushed the grid well clear
+       of the toolbar. Slack now collects above the clue bar, which sits with
+       the keyboard at the bottom where it belongs. */
     .main{display:flex;flex-direction:column;overflow:hidden;padding:8px 12px 12px;flex:1 1 0;
-          min-height:0;justify-content:center}
-    .gridwrap{flex:1 1 0;min-height:0;justify-content:center}
+          min-height:0;justify-content:flex-start}
+    .gridwrap{flex:0 1 auto;min-height:0;justify-content:flex-start}
     .clues,.caption{display:none}
     /* clues-list-section 223:23782 — repeated clue bar, 13px gap, keyboard */
     #mobiledock{display:flex;flex-direction:column;gap:13px;flex:none;
