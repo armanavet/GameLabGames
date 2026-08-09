@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <!-- Edit these freely; crossword.html references them via <use href="icons.svg#id">. -->
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9.2"/><path d="M12 6.6V12l3.6 2.4"/>
+  </symbol>
+  <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 8.5V3.5h10v5"/><path d="M7 18H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><rect x="7" y="14" width="10" height="6.5" rx="1"/><circle cx="17.2" cy="12" r="0.6" fill="currentColor" stroke="none"/>
+  </symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9.51 3.77 L10.02 1.18 L13.98 1.18 L14.49 3.77 L16.06 4.42 L18.25 2.95 L21.05 5.75 L19.58 7.94 L20.23 9.51 L22.82 10.02 L22.82 13.98 L20.23 14.49 L19.58 16.06 L21.05 18.25 L18.25 21.05 L16.06 19.58 L14.49 20.23 L13.98 22.82 L10.02 22.82 L9.51 20.23 L7.94 19.58 L5.75 21.05 L2.95 18.25 L4.42 16.06 L3.77 14.49 L1.18 13.98 L1.18 10.02 L3.77 9.51 L4.42 7.94 L2.95 5.75 L5.75 2.95 L7.94 4.42 Z"/>
+    <circle cx="12" cy="12" r="3.4"/>
+  </symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+    <path d="M4 7h16M4 12h16M4 17h16"/>
+  </symbol>
+  <symbol id="i-caret" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1 1l4 4 4-4"/>
+  </symbol>
+
+  <!-- added for the Figma parity pass -->
+  <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round">
+    <circle cx="12" cy="12" r="10.6" stroke-width="1"/>
+    <path d="M8.7 8.7l6.6 6.6M15.3 8.7l-6.6 6.6" stroke-width="1.5"/>
+  </symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 4 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1 1l2.4 3L1 7"/>
+  </symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="8.5" y="8.5" width="12.5" height="12.5" rx="3.2"/>
+    <path d="M15.2 6.2V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v6.2a3 3 0 0 0 3 3h.2"/>
+  </symbol>
+  <symbol id="i-facebook" viewBox="0 0 13 24" fill="currentColor">
+    <path d="M8.52 24V13.06h3.42l.51-4.24H8.52V6.13c0-1.23.32-2.06 2.03-2.06h2.17V.28C12.35.19 11.06.05 9.56.05 6.43.05 4.29 2.03 4.29 5.67v3.15H.86v4.24h3.43V24h4.23z"/>
+  </symbol>
+  <symbol id="i-x" viewBox="0 0 26 24" fill="currentColor">
+    <path d="M20.16 0h3.97l-8.68 9.92L25.66 24h-8l-6.26-8.19L4.23 24H.25l9.28-10.61L0 0h8.2l5.66 7.49L20.16 0zm-1.4 21.63h2.2L7.03 2.25H4.67l14.09 19.38z"/>
+  </symbol>
+  <symbol id="i-task-square" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.6" y="2.6" width="18.8" height="18.8" rx="5"/>
+    <path d="M7.5 9.2h9M7.5 14.8h6"/>
+  </symbol>
+  <symbol id="i-lamp-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 18h6M10 21h4"/>
+    <path d="M12 2.6a6.6 6.6 0 0 0-3.9 11.9c.6.5.9 1.1.9 1.8h6c0-.7.3-1.3.9-1.8A6.6 6.6 0 0 0 12 2.6Z"/>
+  </symbol>
+  <symbol id="i-backspace" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9L2 12z"/><path d="M18 9l-5 6M13 9l5 6"/>
+  </symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.7 4.6l4.7 4.7L8.9 19.8l-5.4.7.7-5.4z"/><path d="M13.2 6.1l4.7 4.7"/>
+  </symbol>
+  <symbol id="i-chevron-lg" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1.6 1.4L8 8l-6.4 6.6"/>
+  </symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9.3"/><path d="M12 11v5.2"/><circle cx="12" cy="7.9" r=".9" fill="currentColor" stroke="none"/>
+  </symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <path d="M5 12h14"/>
+  </symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <path d="M12 5v14M5 12h14"/>
+  </symbol>
+  <symbol id="i-confetti" viewBox="0 0 39 39" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.4 35.6l8.9-22.1 14 14z"/>
+    <path d="M24.6 3.2v3.4M32.4 6.6l-2.4 2.4M35.8 14.4h-3.4M31.4 21.6l-2-2"/>
+    <circle cx="19.6" cy="10.4" r="1.2" fill="currentColor" stroke="none"/>
+    <circle cx="35.2" cy="26.4" r="1.2" fill="currentColor" stroke="none"/>
+  </symbol>
+  <symbol id="i-whatsapp" viewBox="0 0 21 21" fill="currentColor">
+    <path d="M10.5 0A10.46 10.46 0 0 0 1.4 15.71L0 21l5.42-1.42A10.5 10.5 0 1 0 10.5 0zm0 19.23a8.7 8.7 0 0 1-4.44-1.22l-.32-.19-3.22.85.86-3.14-.21-.33a8.73 8.73 0 1 1 7.33 4.03zm4.79-6.36c-.26-.13-1.55-.77-1.79-.85-.24-.09-.42-.13-.59.13-.18.26-.68.85-.83 1.03-.15.17-.31.2-.57.07-.26-.13-1.11-.41-2.11-1.31-.78-.7-1.31-1.56-1.46-1.82-.15-.26-.02-.4.11-.53.12-.12.26-.31.39-.46.13-.16.17-.27.26-.44.09-.18.04-.33-.02-.46-.07-.13-.59-1.42-.81-1.95-.21-.51-.43-.44-.59-.45h-.5c-.18 0-.46.07-.7.33-.24.26-.92.9-.92 2.19s.94 2.54 1.07 2.72c.13.17 1.85 2.83 4.48 3.97.63.27 1.11.43 1.49.55.63.2 1.2.17 1.65.1.5-.07 1.55-.63 1.77-1.24.22-.61.22-1.13.15-1.24-.06-.11-.24-.18-.5-.31z"/>
+  </symbol>
+</svg>

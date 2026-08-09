@@ -1,0 +1,241 @@
+/* ============================================================================
+   core.css — shared chrome for every game in the platform.
+   Owns: design tokens, app shell, toolbar, menus, modal shell, buttons,
+   settings controls, on-screen keyboard, toast, accessibility utilities.
+   A game stylesheet should only contain its own board/engine styles.
+   Figma node ids are quoted against the rules they implement.
+   ========================================================================= */
+
+:root{
+  --ink:#373737; --ink2:#383838; --ink3:#1a1a1a;
+  --band:#ffd4a3; --word:#fcdacd; --active:#ffa784;
+  --line:#c1c1c1; --grid:#141414; --block:#000000; --wrong:#e0483f;
+  --done:#b3b3b3;
+  --scrim:rgba(0,0,0,.45);
+  --panel:#f3f3f3;
+  --panel-line:#a4a4a4;
+  --ink-soft:#454a5f;
+  --panel-radius:10px;
+  --menu-radius:6px;
+  --sw-on:#2563eb;            /* Primary/Blue/600 */
+  --sw-off:#d2d5da;           /* Primary/Gray/300 */
+  --note-bg:#e4f2fe;
+  --focus:#2563eb;
+  --ok:#00a15c; --ok-bg:#c9f0dc; --ok-ink:#0a6b41;   /* completed */
+  --btn-shadow:0 2.549px 0 rgba(0,0,0,.25);
+  --app-max:880px;
+  --font:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  --font-key:'Inter',var(--font);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:#fff;font-family:var(--font);color:var(--ink)}
+
+/* Figma card is 644 wide; we keep its proportions and scale up to --app-max */
+#app{position:relative;width:100%;max-width:var(--app-max);margin:0 auto;height:100%;
+     background:#fff;overflow:hidden;display:flex;flex-direction:column}
+
+/* ---------- toolbar (177:6683 / 223:23516) ---------- */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;flex:none}
+.tb-side{display:flex;align-items:center;gap:13px}
+.tb-side.right{gap:16px}
+.pill{height:30px;display:flex;align-items:center;gap:8px;padding:0 11px;background:#fff;border:none;
+      border-radius:4px;box-shadow:var(--btn-shadow);font-family:var(--font);font-weight:700;
+      font-size:14px;color:var(--ink2);cursor:pointer;white-space:nowrap}
+.circle{width:30px;height:30px;border-radius:50%;background:#fff;border:none;box-shadow:var(--btn-shadow);
+        display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink2);padding:0}
+.pill:active,.circle:active{transform:translateY(1px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
+.pill svg,.circle svg{display:block}
+.caret{margin-left:2px}
+.assistwrap,.menuwrap{position:relative}
+#timerPill.collapsed{gap:0;padding:0 7px}
+#timerPill.collapsed #timer{display:none}
+
+/* ---------- active clue bar (223:37557) ---------- */
+.cluebar{background:var(--band);padding:15px 20px;font-size:14px;color:var(--ink3);
+         min-height:52px;display:flex;align-items:center;line-height:1.2;flex:none}
+.cluebar .cnum,.cluebar .cdir{font-weight:700}
+.cluebar .cdir{margin-left:5px}
+.cluebar .csep{margin:0 8px;font-weight:700}
+.cluebar .ctxt{font-weight:500}
+.cluebar .cbtext{flex:1 0 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* clue stepper — flanks the bar so entries can be walked in order */
+.clueNav{display:none;width:28px;height:28px;flex:none;padding:0;background:none;border:none;
+         color:var(--ink3);cursor:pointer;align-items:center;justify-content:center;border-radius:50%}
+.clueNav:active{background:rgba(0,0,0,.08)}
+.clueNav#cluePrev svg{transform:scaleX(-1)}
+
+/* ---------- dropdown panels (177:6994 assist / 177:7287 menu) ---------- */
+.menu,.mmenu{position:absolute;top:calc(100% + 4px);right:0;width:169px;background:var(--panel);
+             border:1px solid var(--panel-line);border-radius:var(--menu-radius);
+             padding:10px 20px;display:none;flex-direction:column;gap:5px}
+.menu{z-index:40}
+.mmenu{z-index:50}
+.menu.open,.mmenu.open{display:flex}
+.menu button,.mmenu > button{display:flex;align-items:center;width:100%;height:30px;text-align:left;
+  background:none;border:none;border-bottom:1px solid var(--panel-line);padding:5px 10px 5px 0;
+  font-family:var(--font);font-size:16px;font-weight:600;color:var(--ink);cursor:pointer;white-space:nowrap}
+.mmenu > button{justify-content:space-between}
+.menu button:last-child,.mmenu > button:last-child{border-bottom:none}
+.mmenu > button.hasChev{padding-right:5px}
+.mmenu .chev{color:var(--ink);display:flex;align-items:center}
+
+/* share submenu (177:7595) — sibling of .mmenu so hiding the menu cannot hide it */
+.sharemenu{position:absolute;top:179px;left:calc(100% - 1px);width:101px;background:var(--panel);
+           border:1px solid var(--panel-line);border-radius:var(--menu-radius);padding:10px 20px;
+           display:none;flex-direction:column;gap:5px;z-index:51}
+.sharemenu.open{display:flex}
+.sharemenu button{width:61px;padding:5px 0;background:none;border:none;
+                  border-bottom:1px solid var(--panel-line);display:flex;align-items:center;
+                  justify-content:center;color:var(--ink);cursor:pointer}
+.sharemenu button:last-child{border-bottom:none}
+
+/* menu scrim — clue bar down only, so the toolbar stays live (177:7286) */
+.menuscrim{position:absolute;left:0;right:0;bottom:0;background:var(--scrim);display:none;z-index:45}
+.menuscrim.open{display:block}
+
+/* ---------- modal shell (177:7886 / 8183 / 8475 / 8768) ---------- */
+.overlay{position:absolute;inset:0;background:var(--scrim);display:none;align-items:center;
+         justify-content:center;z-index:60;padding:20px}
+.overlay.open{display:flex}
+.modal{background:var(--panel);border-radius:var(--panel-radius);width:min(564px,100%);max-height:100%;
+       overflow:auto;padding:24px 20px;display:flex;flex-direction:column;align-items:center;gap:22px}
+.mhead{position:relative;width:100%;display:flex;align-items:flex-start;justify-content:center}
+.modal h2{margin:0;font-weight:900;font-size:18px;color:var(--ink);text-align:center;line-height:normal}
+.mclose{position:absolute;right:0;top:0;width:24px;height:24px;padding:0;background:none;border:none;
+        color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mbody{width:100%;display:flex;flex-direction:column;gap:10px;font-size:14px;font-weight:400;
+       color:var(--ink);line-height:normal}
+.mbody p{margin:0}
+.mbody b,.mbody strong{font-weight:700}
+.mbody .soft{color:var(--ink-soft)}
+.mbody ul{margin:0;padding-left:21px}
+.mbody hr{width:100%;height:0;margin:0;border:none;border-top:1px solid var(--panel-line)}
+.mbody.center{text-align:center}
+.mbtns{display:flex;gap:4px;justify-content:center;width:100%}
+.btn{height:35px;padding:5px 30px;border-radius:4px;border:none;font-family:var(--font);font-weight:700;
+     font-size:12px;color:var(--ink);display:flex;align-items:center;justify-content:center;
+     cursor:pointer;white-space:nowrap}
+.btn.sec{background:#fff;border:1px solid var(--panel-line)}
+.btn.pri{background:var(--band);width:95px;padding:5px 0}
+.btn.pri.wide{width:auto;padding:5px 30px}
+
+/* ---------- settings controls (213:15044) ---------- */
+.sgroup{display:flex;flex-direction:column;gap:10px;width:100%}
+.srow{display:flex;align-items:center;justify-content:space-between;width:100%;gap:12px}
+.srow .lab{width:298px;font-size:14px;color:var(--ink);line-height:normal}
+.srow .lab b{display:block;font-weight:700}
+.srow .lab span{display:block;font-weight:400}
+.sw{position:relative;width:36px;height:20px;flex:none}
+.sw input{position:absolute;opacity:0;width:0;height:0}
+.sw i{display:block;position:absolute;inset:0;background:var(--sw-off);border-radius:100px;
+      transition:.2s;cursor:pointer}
+.sw i:before{content:"";position:absolute;width:16px;height:16px;left:2px;top:2px;background:#fff;
+             border-radius:100px;box-shadow:0 2px 4px rgba(39,39,39,.1);transition:.2s}
+.sw input:checked + i{background:var(--sw-on)}
+.sw input:checked + i:before{transform:translateX(16px)}
+.optg{display:flex;flex-direction:column;gap:9px;width:329px}
+.optg > b{font-weight:700;font-size:14px;color:var(--ink)}
+.optg label{display:flex;gap:9px;align-items:flex-start;font-size:14px;font-weight:400;
+            color:var(--ink);cursor:pointer}
+.cbx{appearance:none;-webkit-appearance:none;width:20px;height:20px;flex:none;margin:0;border-radius:4px;
+     border:1.5px solid var(--panel-line);background:#fff;position:relative;cursor:pointer}
+.cbx:checked{background:var(--sw-on);border-color:var(--sw-on)}
+.cbx:checked:after{content:"";position:absolute;left:6.5px;top:2.5px;width:5px;height:10px;
+                   border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.rdo{appearance:none;-webkit-appearance:none;width:15px;height:15px;flex:none;margin:1px 0 0;
+     border-radius:50%;border:1.5px solid var(--ink);background:#fff;position:relative;cursor:pointer}
+.rdo:checked:after{content:"";position:absolute;inset:2.5px;border-radius:50%;background:var(--ink)}
+.rdo.sm{width:12px;height:12px;margin:0}
+.rdo.sm:checked:after{inset:2px}
+
+/* ---------- print dialog (213:14706) ---------- */
+.printopts{display:flex;gap:13px;align-items:center;flex-wrap:wrap}
+.printopts label{display:flex;gap:8px;align-items:center;font-size:14px;font-weight:400;
+                 cursor:pointer;white-space:nowrap}
+.fontstep{display:flex;align-items:center;width:100%}
+.fontstep button{width:51px;height:51px;flex:none;border:1px solid #b7b7b7;background:#fff;
+                 color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.fontstep button:first-child{border-radius:10px 0 0 10px}
+.fontstep button:last-child{border-radius:0 10px 10px 0}
+.fontstep .prev{flex:1;height:51px;border:1px solid #b7b7b7;border-left:none;border-right:none;
+                display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:400;
+                color:var(--ink);overflow:hidden;white-space:nowrap}
+.inkrow{display:flex;gap:33px;align-items:center}
+.mini3{width:72px;height:72px;flex:none;display:grid;grid-template-columns:repeat(3,24px);
+       grid-template-rows:repeat(3,24px)}
+.mini3 span{border:1px solid #18181b}
+.mini3 span.k{background:#18181b}
+.inkslider{width:220px;height:24px;accent-color:var(--ink)}
+.notebox{display:flex;gap:20px;align-items:center;background:var(--note-bg);border-radius:10px;
+         padding:10px 20px;width:100%;font-size:14px;line-height:normal}
+.notebox svg{flex:none;color:var(--ink)}
+
+/* ---------- win screen (221:15569) ---------- */
+.congrats{display:flex;flex-direction:column;gap:5px;align-items:center;width:100%}
+.stats{display:flex;gap:20px;align-items:center;justify-content:center;width:100%}
+.stat{width:79px;display:flex;flex-direction:column;align-items:center;text-align:center;
+      color:var(--ink);line-height:normal}
+.stat span{font-size:14px;font-weight:400}
+.stat b{font-size:28px;font-weight:700}
+.statdiv{width:1px;height:52px;background:var(--panel-line);flex:none}
+
+/* ---------- on-screen keyboard (223:23785) ---------- */
+#keyboard{display:none}
+.kbrow{display:flex;gap:6px;width:100%;justify-content:center}
+.kbrow.r2{padding:0 16px}
+.kbkey{flex:1 1 0;max-width:32px;height:42px;background:#fff;border:none;border-radius:5px;
+       box-shadow:0 1px 0 rgba(0,0,0,.15);font-family:var(--font-key);font-size:18px;font-weight:500;
+       color:#000;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
+       -webkit-tap-highlight-color:transparent}
+.kbkey.sp{max-width:48px;background:#a3aab2;font-size:14px;font-weight:600}
+.kbkey:active{filter:brightness(.92)}
+
+/* ---------- feedback ---------- */
+.toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+       background:#222;color:#fff;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:500;
+       opacity:0;pointer-events:none;transition:.25s;z-index:80}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---------- accessibility ---------- */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+         clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.mobonly{display:none}
+.deskonly{display:flex}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.cell:focus{outline:none}
+.cell:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;z-index:3}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+
+/* ============================ MOBILE ====================================== */
+@media(max-width:720px){
+  #app{margin:0;border-radius:0;max-width:none;height:100%;overflow:hidden}
+  .topbar{height:56px;padding:13px 16px}
+  .cluebar{min-height:41px;padding:12px 16px;align-items:flex-start}
+  .cluebar .ctxt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cluebar{align-items:center;gap:8px}
+  .clueNav{display:flex}
+  .mobonly{display:flex}
+  /* display:contents so dropdowns anchor to #app, and so hiding the Assist pill
+     cannot hide the menu that lives inside its wrapper */
+  .assistwrap,.menuwrap{display:contents}
+  #assistBtn{display:none}
+  /* dropdowns are full-width panels under the toolbar (223:19983 / 223:22476) */
+  .menu,.mmenu,.sharemenu{top:56px;left:0;right:0;width:auto;margin:0;border-radius:0;
+    border-left:none;border-right:none;padding:10px 20px;gap:10px}
+  .menu button,.mmenu > button{height:30px;font-size:16px}
+  .sharemenu{z-index:52}
+  .sharemenu button{width:100%;height:34px;padding:5px 0}
+  .mmenu.sharing{display:none}
+  #keyboard{background:#d1d5db;width:100%;flex:none;display:flex;flex-direction:column;
+            gap:8px;padding:10px 6px 20px}
+  .overlay{padding:16px}
+  .modal{width:100%;max-height:calc(100% - 32px)}
+  .srow .lab{width:auto;flex:1}
+  .optg{width:100%}
+  .printopts{flex-direction:column;align-items:flex-start;gap:9px}
+  .inkrow{gap:16px}
+  .inkslider{width:auto;flex:1}
+}

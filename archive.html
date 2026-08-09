@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Daily Crossword</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<script src="games.js"></script>
+<style>
+  /* Archive — Figma 273:48472 (standalone screen) */
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;background:#fff;font-family:var(--font);color:var(--ink)}
+  #app{width:100%;max-width:880px;margin:0 auto;min-height:100%;background:#fff;
+       display:flex;flex-direction:column;gap:40px;padding:24px 20px 40px}
+  .ahead{display:flex;flex-direction:column;gap:2px;width:100%}
+  .ahead h1{margin:0;font-weight:900;font-size:18px;color:var(--ink);text-align:center;line-height:normal}
+  .ahead p{margin:0;font-weight:400;font-size:14px;color:var(--ink);text-align:center;line-height:normal}
+  .alist{display:flex;flex-direction:column;width:100%}
+  .aitem{display:flex;flex-direction:column;width:100%}
+  .aitem .row{display:flex;gap:16px;align-items:center;padding:18px 32px 18px 16px;width:100%;
+              background:none;border:none;font-family:var(--font);text-align:left;cursor:pointer;color:var(--ink)}
+  .aitem .row:hover{background:#faf1e8}
+  .aitem .divider{height:1px;background:var(--panel-line);width:100%}
+  /* 35px mini grid glyph — Figma 273:48480 */
+  .mini{width:35px;height:35px;flex:none;border:1px solid var(--ink);border-radius:5px;
+        display:flex;align-items:center;justify-content:center;color:var(--ink);padding:3px}
+  .mini svg{width:100%;height:100%;display:block}
+  .det{flex:1 0 0;min-width:0;display:flex;flex-direction:column;color:var(--ink)}
+  .det .t{font-weight:700;font-size:18px;line-height:normal}
+  .det .b{font-weight:400;font-size:14px;line-height:1.4}
+  .chev{width:24px;height:24px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  /* progress indicator — ring + pill, read from local play state */
+  .status{display:flex;align-items:center;gap:10px;flex:none}
+  .ring{flex:none;display:block}
+  .ring .track{stroke:#d9d9d9}
+  .ring .fill{stroke:var(--ink);transition:stroke-dashoffset .3s}
+  .status.completed .ring .track{stroke:var(--ok)}
+  .status.completed .ring .fill{stroke:var(--ok)}
+  .status.completed .tick{stroke:var(--ok)}
+  .pill2{font-size:13px;font-weight:600;padding:4px 12px;border-radius:20px;white-space:nowrap;
+         line-height:1.3}
+  .status.completed .pill2{background:var(--ok-bg);color:var(--ok-ink)}
+  .status.started   .pill2{background:var(--band);color:var(--ink)}
+  .aitem .row.done{background:#f6f6f6}
+  .aitem .row.done:hover{background:#f0ede9}
+  .empty{padding:40px 16px;text-align:center;font-size:14px;color:#8a8a8a}
+  @media(max-width:720px){
+    #app{gap:28px;padding:20px 12px 32px}
+    .aitem .row{padding:16px 12px 16px 8px;gap:12px}
+    .det .t{font-size:16px}
+    .pill2{display:none}          /* ring alone carries the state on narrow screens */
+    .status{gap:0}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="ahead">
+    <h1 id="aTitle">Daily Crossword</h1>
+    <p id="aSub">An engaging new puzzle to conquer each day.</p>
+  </div>
+  <div class="alist" id="aList"><div class="empty">Loading&hellip;</div></div>
+</div>
+
+<script src="core.js"></script>
+<script>
+(async function(){
+  const b64dec=XW.b64dec;
+  const listEl=document.getElementById('aList');
+  const {id:GID, game:G}=resolveGame(new URLSearchParams(location.search).get('game'));
+  document.getElementById('aTitle').textContent=G.label;
+  document.getElementById('aSub').textContent=G.archiveBlurb||G.blurb||'';
+  document.title=G.label;
+  XW.gameId=GID;
+
+  let man;
+  try{ man=await (await fetch(G.manifest||'puzzles.json',{cache:'no-store'})).json(); }
+  catch(e){ listEl.innerHTML='<div class="empty">Could not load <b>puzzles.json</b>. Serve this over http(s), not file://.</div>'; return; }
+
+  /* Works with the current schema (puzzles map) and with the schema-2 index
+     described in ARCHIVE-PLAN.md, so this page does not block that migration. */
+  let items=[];
+  if(Array.isArray(man.index)&&man.index.length){
+    items=man.index.filter(r=>r.status!=='draft').map(r=>({
+      id:r.id, title:r.title||r.id, date:r.date,
+      author:r.author||(r.byline&&r.byline.constructor)||'',
+      editor:r.editor||(r.byline&&r.byline.editor)||'',
+      size:r.size||(r.meta&&r.meta.size)||'', cells:r.cells||0
+    }));
+  }else{
+    items=Object.keys(man.puzzles||{}).map(id=>{
+      const e=man.puzzles[id];
+      let o={};
+      try{ o=(typeof e==='string')?JSON.parse(b64dec(e)):e; }catch(_){}
+      return {id, title:o.title||id, date:o.date, author:o.author, editor:o.editor,
+              size:(o.W&&o.H)?o.W+'x'+o.H:''};
+    });
+  }
+  items.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function label(it){
+    if(!it.date) return it.title;
+    const d=new Date(it.date+'T00:00:00');
+    if(isNaN(d)) return it.title;
+    return 'L. A. Times, '+DOW[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();
+  }
+  function byline(it){
+    const parts=[];
+    if(it.author)parts.push('by '+it.author);
+    if(it.editor)parts.push('Ed. '+it.editor);
+    return parts.length?parts.join(' / '):(it.size?it.size+' grid':'');
+  }
+  /* Play state comes from the shared store, so the archive needs no backend and
+     never fetches a payload — `cells` in the index supplies the denominator. */
+  function state(it){
+    const st=XW.storage.load(it.id);
+    if(!st)return null;
+    const filled=Object.keys(st.letters||{}).length;
+    if(st.completed)return {kind:'completed',label:'Completed',pct:1};
+    if(!filled)return null;
+    const total=it.cells||0;
+    return {kind:'started',label:'Started',pct:total?Math.min(1,filled/total):0.12};
+  }
+  const R=10, C=2*Math.PI*R;
+  function ringSVG(s){
+    const off=C*(1-s.pct);
+    return '<svg class="ring" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">'+
+      '<circle class="track" cx="12" cy="12" r="'+R+'" fill="none" stroke-width="2.4"/>'+
+      '<circle class="fill" cx="12" cy="12" r="'+R+'" fill="none" stroke-width="2.4" stroke-linecap="round"'+
+      ' stroke-dasharray="'+C.toFixed(2)+'" stroke-dashoffset="'+off.toFixed(2)+'"'+
+      ' transform="rotate(-90 12 12)"/>'+
+      (s.kind==='completed'
+        ? '<path class="tick" d="M7.6 12.3l2.9 2.9 5.9-6.2" fill="none" stroke-width="2.2"'+
+          ' stroke-linecap="round" stroke-linejoin="round"/>'
+        : '')+
+      '</svg>';
+  }
+
+  if(!items.length){ listEl.innerHTML='<div class="empty">No puzzles yet.</div>'; return; }
+
+
+  listEl.innerHTML='';
+  items.forEach(it=>{
+    const wrap=document.createElement('div');wrap.className='aitem';
+    const row=document.createElement('button');row.className='row';
+    const mini='<div class="mini">'+(G.art||'')+'</div>';
+    const st=state(it);
+    row.innerHTML=mini+
+      '<div class="det"><div class="t"></div><div class="b"></div></div>'+
+      (st?'<div class="status '+st.kind+'">'+ringSVG(st)+'<span class="pill2">'+st.label+'</span></div>':'')+
+      '<div class="chev"><svg width="10" height="16" aria-hidden="true"><use href="icons.svg#i-chevron-lg"/></svg></div>';
+    row.querySelector('.t').textContent=label(it);
+    row.querySelector('.b').textContent=byline(it);
+    if(st){
+      row.classList.toggle('done',st.kind==='completed');
+      row.setAttribute('aria-label',label(it)+' — '+st.label+
+        (st.kind==='started'?', '+Math.round(st.pct*100)+'% filled':''));
+    }
+    row.addEventListener('click',()=>XW.goPuzzle(it.id));
+    const div=document.createElement('div');div.className='divider';
+    wrap.appendChild(row);wrap.appendChild(div);listEl.appendChild(wrap);
+  });
+})();
+</script>
+</body>
+</html>

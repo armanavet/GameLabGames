@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<script src="games.js"></script>
+<style>
+  /* Game picker. A real page, not an embed — the iframe wrapper is play.html,
+     which is what stands in for the host site around an actual game. */
+  body{background:#fafafa}
+  #app{max-width:1120px;height:auto;min-height:100%;background:transparent;overflow:visible;
+       padding:0 20px 56px}
+
+  .masthead{display:flex;flex-direction:column;align-items:center;gap:14px;padding:44px 0 36px;text-align:center}
+  .logo{width:72px;height:72px;border-radius:16px;background:var(--band);display:flex;
+        align-items:center;justify-content:center;flex:none}
+  .masthead h1{margin:0;font-size:32px;font-weight:900;color:var(--ink);letter-spacing:-.01em}
+  .masthead p{margin:0;font-size:15px;font-weight:500;color:#6b6b6b}
+
+  .games{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:22px}
+
+  .card{display:flex;flex-direction:column;background:#fff;border:1px solid #e8e8e8;border-radius:14px;
+        overflow:hidden;transition:transform .16s ease, box-shadow .16s ease}
+  .card.live:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.09)}
+  .thumb{height:128px;display:flex;align-items:center;justify-content:center;background:var(--band);position:relative;color:#111}
+  .thumb svg{width:52px;height:52px;display:block}
+  .card.soon .thumb{background:#efefef}
+  .card.soon .thumb svg{opacity:.42}
+  .tag{position:absolute;top:10px;left:10px;background:#fff;border-radius:20px;padding:3px 10px;
+       font-size:11px;font-weight:700;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .body{display:flex;flex-direction:column;gap:6px;padding:16px 16px 18px;flex:1}
+  .body h2{margin:0;font-size:18px;font-weight:700;color:var(--ink)}
+  .body p{margin:0 0 8px;font-size:13.5px;font-weight:400;color:#6b6b6b;line-height:1.45;flex:1}
+  .go{display:flex;align-items:center;justify-content:center;height:40px;border-radius:22px;
+      font-size:14px;font-weight:700;text-decoration:none;border:1.5px solid var(--ink);
+      color:var(--ink);background:#fff;transition:background .15s}
+  .go:hover{background:var(--band)}
+  .go.off{border-color:#dcdcdc;color:#a3a3a3;background:#fafafa;cursor:default}
+
+  footer{margin-top:40px;text-align:center;font-size:13px;color:#9a9a9a}
+  footer a{color:#6b6b6b}
+
+  @media(max-width:640px){
+    #app{padding:0 14px 40px}
+    .games{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+    .masthead{padding:32px 0 26px}
+    .masthead h1{font-size:26px}
+    .thumb{height:96px}
+    .body{padding:13px 13px 15px}
+    .body h2{font-size:15.5px}
+    .body p{font-size:12.5px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="masthead">
+    <div class="logo">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+        <g fill="#111">
+          <rect x="1"  y="1"  width="11" height="11" rx="2.5"/>
+          <rect x="14.5" y="14.5" width="11" height="11" rx="2.5"/>
+          <rect x="28" y="1"  width="11" height="11" rx="2.5"/>
+          <rect x="1"  y="28" width="11" height="11" rx="2.5"/>
+          <rect x="28" y="28" width="11" height="11" rx="2.5"/>
+        </g>
+        <g fill="#fff" stroke="#111" stroke-width="1.1">
+          <rect x="14.5" y="1"  width="11" height="11" rx="2.5"/>
+          <rect x="1"  y="14.5" width="11" height="11" rx="2.5"/>
+          <rect x="28" y="14.5" width="11" height="11" rx="2.5"/>
+          <rect x="14.5" y="28" width="11" height="11" rx="2.5"/>
+        </g>
+      </svg>
+    </div>
+    <h1>Games</h1>
+    <p>Pick a puzzle and start playing.</p>
+  </header>
+
+  <main class="games" id="games"></main>
+
+  <footer>
+    Building the in-house player &middot; <a href="play.html?game=editor">Puzzle editor</a>
+  </footer>
+</div>
+
+<script>
+/* Cards are generated from games.js — the roster lives in one place, so adding
+   a game never means editing this file. */
+const host = document.getElementById('games');
+Object.entries(window.GAMES).forEach(([gid, g]) => {
+  if (g.hidden) return;
+  const card = document.createElement('article');
+  card.className = 'card ' + (g.live ? 'live' : 'soon');
+
+  const thumb = document.createElement('div');
+  thumb.className = 'thumb';
+  thumb.innerHTML = g.art + (g.tag ? '<span class="tag">' + g.tag + '</span>' : '');
+
+  const body = document.createElement('div');
+  body.className = 'body';
+  const h = document.createElement('h2'); h.textContent = g.label;
+  const blurb = document.createElement('p'); blurb.textContent = g.blurb || '';
+  body.appendChild(h); body.appendChild(blurb);
+
+  if (g.live) {
+    const a = document.createElement('a');
+    a.className = 'go';
+    a.href = 'play.html?game=' + encodeURIComponent(gid);
+    a.textContent = 'Play';
+    a.setAttribute('aria-label', 'Play ' + g.label);
+    body.appendChild(a);
+  } else {
+    const s = document.createElement('span');
+    s.className = 'go off'; s.textContent = 'Coming soon';
+    s.setAttribute('aria-disabled', 'true');
+    body.appendChild(s);
+  }
+  card.appendChild(thumb); card.appendChild(body);
+  host.appendChild(card);
+});
+</script>
+</body>
+</html>

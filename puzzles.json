@@ -1,0 +1,40 @@
+{
+  "schema": 2,
+  "default": "crossword-1",
+  "_note": "Drop a puzzle .json into puzzles/ and run:  python3 puzzle-tool.py index\nEverything here is plain readable JSON — edit dates, titles and bylines by hand or with puzzle-tool.py. Answers are no longer base64'd; see CODE-REVIEW.md §5 for why that trade was made.",
+  "index": [
+    {
+      "id": "crossword-1",
+      "title": "Crossword 1",
+      "date": "2026-08-07",
+      "size": "15x15",
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/crossword-1.json",
+      "cells": 187
+    },
+    {
+      "id": "crossword-2",
+      "title": "Crossword 2",
+      "date": "2026-08-08",
+      "size": "15x15",
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/crossword-2.json",
+      "cells": 189
+    },
+    {
+      "id": "crossword-3",
+      "title": "Crossword 3",
+      "date": "2026-08-09",
+      "size": "15x15",
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/crossword-3.json",
+      "cells": 167
+    }
+  ]
+}

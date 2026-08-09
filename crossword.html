@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<!-- zoom deliberately enabled: blocking it is a WCAG failure and iOS ignores it anyway -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Crossword</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&family=Roboto:wght@400;700&family=Inter:wght@500;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<style>
+  /* crossword-only styles — everything shared lives in core.css */
+  .main{display:grid;grid-template-columns:400fr 156fr;gap:29px;padding:18px 39px 10px 20px;
+        align-items:stretch;flex:1;min-height:0;overflow:hidden}
+  .gridwrap{display:flex;flex-direction:column;align-items:center;min-width:0}
+  .grow{display:contents}
+  .board{--cell:26.617px;--n:15;--num-scale:0.25;display:grid;
+         grid-template-columns:repeat(var(--n),var(--cell));grid-template-rows:repeat(var(--n),var(--cell));
+         background:#fff;border-top:.74px solid var(--grid);border-left:.74px solid var(--grid)}
+  .cell{position:relative;width:var(--cell);height:var(--cell);background:#fff;display:flex;
+        align-items:center;justify-content:center;cursor:pointer;user-select:none;
+        border-right:.74px solid var(--grid);border-bottom:.74px solid var(--grid)}
+  .cell.block{background:var(--block);border-color:var(--block);cursor:default}
+  /* Figma specifies 0.30; dialled back so numbers don't crowd the letters */
+  .cell .num{position:absolute;top:.5px;left:1.5px;font-family:'Roboto',sans-serif;font-weight:400;
+             font-size:calc(var(--cell)*var(--num-scale));color:#000;line-height:1}
+  .cell .val{font-family:'Roboto',sans-serif;font-weight:700;font-size:calc(var(--cell)*0.55);
+             color:#141414;text-transform:uppercase;line-height:1;margin-top:calc(var(--cell)*0.08)}
+  .cell.hword{background:var(--word)}
+  .cell.hcell{background:var(--active)}
+  .cell.revealed .val{color:#2b6fd0}
+  .cell.wrong{z-index:1}
+  .cell.wrong .val{color:var(--wrong);font-weight:700}
+  .cell.wrong::after{content:"";position:absolute;inset:0;background:linear-gradient(to top right,
+    transparent calc(50% - .8px),var(--wrong) calc(50% - .8px),var(--wrong) calc(50% + .8px),transparent calc(50% + .8px))}
+  .caption{margin-top:14px;max-width:356px;text-align:center;font-weight:500;font-size:14px;
+           color:var(--ink);line-height:1.35}
+  #printGrid{display:none}
+  /* clue lists (desktop) */
+  .clues{min-width:0;display:flex;flex-direction:column;gap:14px;min-height:0;overflow:hidden}
+  .clist{flex:1 1 0;min-height:0;display:flex;flex-direction:column}
+  .clist h3{flex:none;margin:0;font-weight:700;font-size:14px;color:var(--ink);
+            border-bottom:1px solid var(--line);padding:5px 10px 6px 0}
+  .clist ol{flex:1 1 0;min-height:0;overflow-y:auto;margin:8px 0 0;padding:0 2px 0 0;list-style:none;
+            scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  .clist ol::-webkit-scrollbar{width:4px}
+  .clist ol::-webkit-scrollbar-track{background:transparent}
+  .clist ol::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}
+  .clue{display:flex;gap:6px;width:100%;padding:3px 8px;font-family:var(--font);font-weight:500;
+        font-size:14px;color:var(--ink);line-height:1.28;cursor:pointer;border:none;border-radius:6px;
+        background:none;text-align:left}
+  .clue .cn{min-width:16px;text-align:right;font-weight:500}
+  .clue:hover{background:#faf1e8}
+  .clue.active{background:var(--band)}
+  .clue.done{color:var(--done)}
+  .clue.done .cn{color:var(--done)}
+  /* mobile clue-list screen (224:38919) */
+  #clueListView{display:none}
+  .clHead{padding:20px 17px 0;text-align:center;flex:none}
+  .clDate{font-weight:700;font-size:14px;color:var(--ink);line-height:normal}
+  .clSub{font-weight:400;font-size:14px;color:var(--ink);line-height:normal;margin-top:2px}
+  .clDiv{height:1px;background:var(--panel-line);margin:15px 26px 0;flex:none}
+  .clScroll{flex:1 1 0;min-height:0;overflow-y:auto;padding:15px 26px 8px;
+            scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  .clScroll::-webkit-scrollbar{width:4px}
+  .clScroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}
+  .clSect{font-weight:700;font-size:14px;color:var(--ink);margin:0 0 11px}
+  .clSect.later{margin-top:22px}
+  .clItem{display:flex;flex-direction:column;gap:6px;margin-bottom:11px;cursor:pointer;width:100%;
+          background:none;border:none;padding:0;text-align:left;font-family:var(--font)}
+  .clTextRow{display:flex;gap:4px;align-items:flex-start;font-size:14px;line-height:normal}
+  .clNum{font-family:var(--font-key);font-weight:800;color:#111;white-space:nowrap}
+  .clTxt{flex:1 0 0;min-width:0;font-weight:500;color:var(--ink)}
+  .clBoxes{display:flex}
+  .clBox{width:28px;height:28px;flex:none;background:#fff;border:1px solid #4b5563;margin-left:-1px;
+         display:flex;align-items:center;justify-content:center;font-family:'Roboto',sans-serif;
+         font-weight:700;font-size:15px;color:#141414;text-transform:uppercase}
+  .clBox:first-child{margin-left:0}
+  .clItem.on .clBox{background:var(--word)}
+  .clItem.on .clTxt{font-weight:700}
+  #mobiledock{display:none}
+
+  @media(max-width:720px){
+    /* MOBILE_PAD below must match this padding — the grid is height-constrained
+       here, so without it the board fills availH exactly and sits flush against
+       the clue bar. */
+    .main{display:flex;flex-direction:column;overflow:hidden;padding:8px 0 12px;flex:1 1 0;
+          min-height:0;justify-content:center}
+    .gridwrap{flex:1 1 0;min-height:0;justify-content:center}
+    .clues,.caption{display:none}
+    /* clues-list-section 223:23782 — repeated clue bar, 13px gap, keyboard */
+    #mobiledock{display:flex;flex-direction:column;gap:13px;flex:none;
+                padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+    #cluebar2{flex:none}
+    /* the clue appears once on mobile, above the keyboard — the top bar was a
+       duplicate and cost 41px of grid */
+    #cluebar{display:none}
+    body.clues-open .clueNav{visibility:hidden}
+    #clueListView{flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden}
+    body.clues-open #clueListView{display:flex}
+    body.clues-open .main,body.clues-open #cluebar{display:none}
+    body.clues-open #clueListBtn{background:var(--panel);box-shadow:0 0 0 1px var(--panel-line)}
+  }
+
+  /* landscape phones and small handsets: give the grid room by shrinking the
+     keyboard instead of letting the board get squeezed or clipped */
+  @media(max-width:720px) and (max-height:640px){
+    .kbkey{height:34px}
+    #keyboard{gap:5px;padding:6px 6px 10px}
+    #mobiledock{gap:8px}
+    .cluebar{min-height:36px;padding:9px 16px}
+  }
+
+  @media print{
+    @page{margin:10mm}
+    /* browsers drop background fills when printing unless told otherwise */
+    *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
+    html,body,#app{height:auto;overflow:visible;max-width:none;display:block}
+    .topbar,.cluebar,#mobiledock,#clueListView,.overlay,.menuscrim,.toast,
+    .mmenu,.menu,.sharemenu{display:none !important}
+    .main{display:block;padding:0;overflow:visible}
+    .gridwrap{page-break-inside:avoid;break-inside:avoid;display:block;width:max-content;margin:0 auto 8px}
+    /* the DOM grid is 225 independently-placed boxes whose rules land on
+       different device pixels; swap in the vector copy so every line matches */
+    .board{display:none !important}
+    #printGrid{display:block;margin:0 auto}
+    .caption{margin:0 auto 10px;font-size:10px;max-width:none}
+    .clues{display:block !important;overflow:visible;columns:3;column-gap:14px;gap:0}
+    .clist{display:block;min-height:0}
+    .clist h3{font-size:calc(var(--print-font,9px) + 1px);margin:0 0 3px;padding:0 0 2px;
+              border-bottom:1px solid #999;break-after:avoid;page-break-after:avoid}
+    .clist ol{overflow:visible !important;display:block;margin:0 0 8px;padding:0;columns:auto}
+    .clue{break-inside:avoid;page-break-inside:avoid;font-size:var(--print-font,9px);padding:0;
+          line-height:1.25;gap:4px;border-radius:0}
+    .clue .cn{min-width:14px}
+    .clue.active,.clue.done{background:none !important;color:#000 !important}
+    .clue.done .cn{color:#000 !important}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- toolbar is mounted by core.js -->
+  <div class="cluebar" id="cluebar">
+    <span class="cnum">1</span><span class="cdir">ACROSS</span><span class="csep">&bull;</span><span class="ctxt">&mdash;</span>
+  </div>
+
+  <div class="main">
+    <div class="gridwrap">
+      <div class="board" id="board"></div>
+      <svg id="printGrid" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="caption" id="caption"></div>
+    </div>
+    <div class="clues">
+      <div class="clist"><h3 id="hDown">Down</h3><ol id="downList" aria-labelledby="hDown"></ol></div>
+      <div class="clist"><h3 id="hAcross">Across</h3><ol id="acrossList" aria-labelledby="hAcross"></ol></div>
+    </div>
+  </div>
+
+  <div id="clueListView">
+    <div class="clHead">
+      <div class="clDate" id="clDate">&mdash;</div>
+      <div class="clSub" id="clSub"></div>
+    </div>
+    <div class="clDiv"></div>
+    <div class="clScroll" id="clScroll"></div>
+  </div>
+
+  <div id="mobiledock">
+    <div class="cluebar" id="cluebar2">
+      <button class="clueNav" type="button" id="cluePrev" aria-label="Previous clue">
+        <svg width="10" height="16" aria-hidden="true"><use href="icons.svg#i-chevron-lg"/></svg>
+      </button>
+      <span class="cbtext"><span class="cnum"></span><span class="cdir"></span><span class="csep"></span><span class="ctxt">&mdash;</span></span>
+      <button class="clueNav" type="button" id="clueNext" aria-label="Next clue">
+        <svg width="10" height="16" aria-hidden="true"><use href="icons.svg#i-chevron-lg"/></svg>
+      </button>
+    </div>
+    <div id="keyboard"></div>
+  </div>
+
+  <div class="menuscrim" id="menuScrim"></div>
+
+  <!-- How To Play — Figma 177:7886 -->
+  <div class="overlay" id="howtoOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-howto">
+    <div class="mhead"><h2 id="dlgH-howto">How To Play</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p><b>Error check mode</b></p>
+      <p>If you want to know whether you&rsquo;ve typed incorrect entries, use the Error Check mode. You can find it under Settings at the top right of the puzzle. When this option is turned on, incorrect letters are shown with a diagonal line across them.</p>
+      <p><b>Score</b></p>
+      <ul><li>Find a word? <b>10 points</b></li><li>Reveal an entire word? <b>0 points</b></li><li>Reveal a letter? - <b>1 point per letter</b></li></ul>
+      <p class="soft">Finish the puzzle correctly within the <b>15 minutes</b> target time and earn a bonus of <b>15 points</b> for every minute you finish early.</p>
+      <p><b>Start again</b></p>
+      <p>Use the Start again option to reset the entire grid. The empty grid will be displayed and the clock will be set back to zero.</p>
+      <p><b>Print</b></p>
+      <p>Use the Print menu to print the empty puzzle, the grid with the letters filled in so far, or the grid with the entire solution.</p>
+    </div>
+  </div></div>
+
+  <!-- Support — Figma 177:8183 -->
+  <div class="overlay" id="supportOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-support">
+    <div class="mhead"><h2 id="dlgH-support">Support</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>This player is powered by GameLab</p>
+      <div class="soft">
+        <p>Please include the following in your message:</p>
+        <p><b>Ticket number: <span id="ticketNo">&mdash;</span></b></p>
+        <p>Device type</p><p>Device orientation</p><p>Screenshot (if possible)</p>
+      </div>
+      <hr/>
+      <p id="copyrightLine">&copy; 2026</p>
+    </div>
+  </div></div>
+
+  <!-- shared confirm/notice — Figma 177:8475 / 177:8768 / 221:18238 -->
+  <div class="overlay" id="dialogOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="mhead"><h2 id="dlgTitle">&mdash;</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center"><p id="dlgBody">&mdash;</p></div>
+    <div class="mbtns">
+      <button class="btn sec" type="button" id="dlgClose">Close</button>
+      <button class="btn pri" type="button" id="dlgOk">Ok</button>
+    </div>
+  </div></div>
+
+  <!-- Settings — Figma 213:15044 -->
+  <div class="overlay" id="settingsOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-settings">
+    <div class="mhead"><h2 id="dlgH-settings">Settings</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <div class="sgroup">
+        <div class="srow"><div class="lab"><b>Error check mode</b><span>Marks incorrect letters with a diagonal line</span></div>
+          <label class="sw"><input type="checkbox" id="setError"/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Show timer</b><span>Shows the timer while playing this puzzle</span></div>
+          <label class="sw"><input type="checkbox" id="setTimer" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Sound</b><span>Control puzzle audio (if available) and multiplayer sounds</span></div>
+          <label class="sw"><input type="checkbox" id="setSound" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Show linked clues</b><span>Cross-referenced clues will be soft-highlighted</span></div>
+          <label class="sw"><input type="checkbox" id="setLinked" checked/><i></i></label></div>
+      </div>
+      <div class="optg"><b>After entering a letter</b>
+        <label><input type="checkbox" class="cbx" id="setSkip" checked/> Skip over filled letters</label></div>
+      <div class="optg"><b>At the end of a word</b>
+        <label><input type="radio" class="rdo" name="eow" id="eowStay" checked/> Stay in current clue</label>
+        <label><input type="radio" class="rdo" name="eow" id="eowNext"/> Move to next clue</label></div>
+      <div class="optg"><b>Use space key to</b>
+        <label><input type="radio" class="rdo" name="spc" id="spcToggle" checked/> Toggle clue direction</label>
+        <label><input type="radio" class="rdo" name="spc" id="spcClear"/> Clear the current box and move to the next</label></div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="applySettings">Apply</button></div>
+  </div></div>
+
+  <!-- Print — Figma 213:14706 -->
+  <div class="overlay" id="printOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-print">
+    <div class="mhead"><h2 id="dlgH-print">Print</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <div class="printopts" role="radiogroup" aria-label="What to print">
+        <label><input type="radio" class="rdo sm" name="pmode" value="blank" checked/> Blank Puzzle</label>
+        <label><input type="radio" class="rdo sm" name="pmode" value="filled"/> Puzzle with filled entries</label>
+        <label><input type="radio" class="rdo sm" name="pmode" value="solution"/> Solution</label>
+      </div>
+      <p><b>To fit this puzzle onto one page, try adjusting its font size:</b></p>
+      <div class="fontstep">
+        <button type="button" id="fsDown" aria-label="Smaller clue text"><svg width="18" height="18" aria-hidden="true"><use href="icons.svg#i-minus"/></svg></button>
+        <div class="prev" id="fsPrev">Lorem ipsum dolor sit amet</div>
+        <button type="button" id="fsUp" aria-label="Larger clue text"><svg width="18" height="18" aria-hidden="true"><use href="icons.svg#i-plus"/></svg></button>
+      </div>
+      <p><b>To save ink, adjust the slider:</b></p>
+      <div class="inkrow">
+        <div class="mini3" id="inkPreview" aria-hidden="true">
+          <span class="k"></span><span></span><span class="k"></span>
+          <span></span><span></span><span></span>
+          <span class="k"></span><span></span><span class="k"></span>
+        </div>
+        <input type="range" class="inkslider" id="inkSlider" min="0" max="100" value="100" aria-label="Ink darkness"/>
+      </div>
+      <div class="notebox"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-info"/></svg>
+        <p><b>Please note:</b> Grid lines may not display properly in the print preview in some browsers, but they will print correctly.</p>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="doPrint">Print</button></div>
+  </div></div>
+
+  <!-- Congratulations! — Figma 221:15569 -->
+  <div class="overlay" id="winOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-win">
+    <div class="mhead"><h2 id="dlgH-win">Congratulations!</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center">
+      <div class="congrats"><svg width="39" height="39" aria-hidden="true"><use href="icons.svg#i-confetti"/></svg><p>You completed this puzzle. Keep playing!</p></div>
+      <div class="stats">
+        <div class="stat"><span>Score</span><b id="winScore">0</b></div>
+        <div class="statdiv"></div>
+        <div class="stat"><span>Time</span><b id="winTime">00:00</b></div>
+      </div>
+      <div class="mbtns"><button class="btn pri" type="button" id="winShare">Share</button></div>
+      <p><b>Discover Your New Challenge</b></p>
+      <!-- stands in for the 183x197 promo tile (221:15604) until artwork lands -->
+      <div class="mbtns"><button class="btn pri wide" type="button" id="winMore">More puzzles</button></div>
+    </div>
+  </div></div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div id="srLive" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+</div>
+
+<script src="core.js"></script>
+<script>
+(async function(){
+  'use strict';
+  const $=XW.$;
+
+  let loaded;
+  try{ loaded=await XW.loadPuzzle(); }
+  catch(e){
+    document.getElementById('app').innerHTML=
+      '<div style="padding:44px;font-size:16px;line-height:1.5;color:#555">Could not load <b>puzzles.json</b>.<br>'+
+      'Serve this page over http(s) with <b>puzzles.json</b> alongside it (a local server, not file://).</div>';
+    return;
+  }
+  const P=loaded.data, puzId=loaded.id, N=P.W, H=P.H;
+  XW.gameId='crossword'; XW.puzzleId=puzId;
+  document.title=P.title||'Crossword';
+
+  /* shared chrome, mounted rather than copy-pasted per game */
+  const app=document.getElementById('app');
+  XW.mountToolbar(app,{clueList:true,assist:true});
+  app.insertBefore($('.topbar'),document.getElementById('cluebar'));
+
+  const board=document.getElementById('board');
+  board.style.setProperty('--n',N);
+  const isMobile=()=>window.matchMedia?window.matchMedia('(max-width:720px)').matches:innerWidth<=720;
+
+  const cells={}, acrossOf={}, downOf={};
+  const key=(r,c)=>r+','+c;
+  P.across.forEach(s=>{s.dir='A';s.cells=[];for(let i=0;i<s.len;i++)s.cells.push(key(s.row,s.col+i));});
+  P.down.forEach(s=>{s.dir='D';s.cells=[];for(let i=0;i<s.len;i++)s.cells.push(key(s.row+i,s.col));});
+  P.across.forEach(s=>s.cells.forEach(k=>acrossOf[k]=s));
+  P.down.forEach(s=>s.cells.forEach(k=>downOf[k]=s));
+
+  /* grid: real rows so role=grid is valid, roving tabindex for keyboard users */
+  board.setAttribute('role','grid');
+  board.setAttribute('aria-label',(P.title||'Crossword')+' grid, '+N+' columns by '+H+' rows');
+  board.setAttribute('aria-rowcount',H);board.setAttribute('aria-colcount',N);
+  for(let r=0;r<H;r++){
+    const row=document.createElement('div');
+    row.className='grow';row.setAttribute('role','row');row.setAttribute('aria-rowindex',r+1);
+    for(let c=0;c<N;c++){
+      const cel=document.createElement('div');
+      cel.setAttribute('role','gridcell');cel.setAttribute('aria-colindex',c+1);
+      const letter=P.grid[r][c];
+      if(letter===null){
+        cel.className='cell block';cel.setAttribute('aria-label','Blocked square');
+        cel.setAttribute('aria-disabled','true');row.appendChild(cel);continue;
+      }
+      cel.className='cell';cel.dataset.r=r;cel.dataset.c=c;cel.tabIndex=-1;
+      const num=P.num[r][c];
+      if(num){const ns=document.createElement('span');ns.className='num';ns.textContent=num;ns.setAttribute('aria-hidden','true');cel.appendChild(ns);}
+      const val=document.createElement('span');val.className='val';val.setAttribute('aria-hidden','true');cel.appendChild(val);
+      row.appendChild(cel);
+      cells[key(r,c)]={el:cel,val,r,c,sol:letter};
+      cel.addEventListener('click',()=>onCellClick(r,c));
+    }
+    board.appendChild(row);
+  }
+
+  /* clue lists — textContent only; clue text is puzzle-authored and must never
+     be parsed as HTML, especially once ipuz files arrive from constructors */
+  function buildList(cont,slots){slots.forEach(s=>{
+    const li=document.createElement('li');
+    const b=document.createElement('button');b.type='button';b.className='clue';
+    const n=document.createElement('span');n.className='cn';n.textContent=s.num+'.';
+    const t=document.createElement('span');t.className='ct';t.textContent=s.clue;
+    b.appendChild(n);b.appendChild(t);
+    b.setAttribute('aria-label',s.num+' '+(s.dir==='A'?'Across':'Down')+', '+s.clue);
+    b.addEventListener('click',()=>{selectSlot(s);focusCell(s.cells[0]);});
+    li.appendChild(b);s._li=b;cont.appendChild(li);});}
+  buildList(document.getElementById('acrossList'),P.across);
+  buildList(document.getElementById('downList'),P.down);
+  document.getElementById('caption').textContent=P.caption||P.title||'';
+
+  /* ---- state ---- */
+  let cur=null,curDir='A',curKey=null,won=false,lastClueId='';
+  let errorMode=false,skipFilled=true,eowNext=false,spcClear=false,soundOn=true,timerVisible=true,linkedClues=true;
+  const revealedKeys=new Set();
+  const refocus=()=>{const o=curKey&&cells[curKey];if(o)o.el.focus({preventScroll:true});};
+  XW.onOverlayClose=refocus;
+
+  const slotAt=(r,c,dir)=> dir==='A'?acrossOf[key(r,c)]:downOf[key(r,c)];
+  function selectSlot(s){cur=s;curDir=s.dir;render();}
+  function focusCell(k){curKey=k;render();refocus();}
+  function onCellClick(r,c){
+    const k=key(r,c);
+    if(curKey===k)toggleDir();
+    else{const s=slotAt(r,c,curDir)||slotAt(r,c,curDir==='A'?'D':'A');cur=s;curDir=s.dir;curKey=k;}
+    render();refocus();
+  }
+  function toggleDir(){const [r,c]=curKey.split(',').map(Number);const o=curDir==='A'?'D':'A';const s=slotAt(r,c,o);if(s){curDir=o;cur=s;}}
+  function updateDone(){
+    [...P.across,...P.down].forEach(s=>{
+      const full=s.cells.every(k=>cells[k]&&cells[k].val.textContent);
+      if(s._li)s._li.classList.toggle('done',full);
+    });
+  }
+  function render(){
+    Object.values(cells).forEach(o=>{o.el.classList.remove('hword','hcell');o.el.tabIndex=-1;});
+    if(cur)cur.cells.forEach(k=>cells[k]&&cells[k].el.classList.add('hword'));
+    if(curKey&&cells[curKey]){
+      const o=cells[curKey];
+      o.el.classList.remove('hword');o.el.classList.add('hcell');
+      o.el.tabIndex=0;
+      o.el.setAttribute('aria-label',(o.val.textContent||'Empty')+', row '+(o.r+1)+' column '+(o.c+1)+
+        (cur?', '+cur.num+' '+(cur.dir==='A'?'Across':'Down')+': '+cur.clue:''));
+    }
+    const cb=document.getElementById('cluebar');
+    if(cur){
+      cb.querySelector('.cnum').textContent=cur.num;
+      cb.querySelector('.cdir').textContent=cur.dir==='A'?'ACROSS':'DOWN';
+      cb.querySelector('.ctxt').textContent=cur.clue;
+      const id=cur.num+cur.dir;
+      if(id!==lastClueId){lastClueId=id;XW.announce(cur.num+' '+(cur.dir==='A'?'Across':'Down')+': '+cur.clue);}
+    }
+    document.querySelectorAll('.clue').forEach(e=>e.classList.remove('active'));
+    if(cur&&cur._li){cur._li.classList.add('active');if(cur._li.scrollIntoView)cur._li.scrollIntoView({block:'nearest'});}
+    updateDone();paintCluebar2();paintClueList();
+  }
+  function setLetter(k,ch){
+    const o=cells[k];if(!o)return;
+    o.val.textContent=ch;o.el.classList.remove('wrong','revealed');
+    if(!ch)revealedKeys.delete(k);
+    if(ch&&errorMode&&ch!==o.sol)o.el.classList.add('wrong');
+  }
+  function advance(){
+    if(!cur||!curKey)return;
+    const idx=cur.cells.indexOf(curKey);let ni=idx+1;
+    if(skipFilled)while(ni<cur.cells.length&&cells[cur.cells[ni]].val.textContent)ni++;
+    if(ni<cur.cells.length)curKey=cur.cells[ni];
+    else if(eowNext){const nx=nextSlot(cur);if(nx){cur=nx;curDir=nx.dir;curKey=nx.cells[0];}}
+    else curKey=cur.cells[cur.cells.length-1];
+    render();refocus();
+  }
+  function backspace(){
+    if(!cur||!curKey)return;
+    const o=cells[curKey];
+    if(o.val.textContent)setLetter(curKey,'');
+    else{const i=cur.cells.indexOf(curKey);if(i>0){curKey=cur.cells[i-1];setLetter(curKey,'');}}
+    render();refocus();save();
+  }
+  function nextSlot(s,delta){
+    delta=delta||1;
+    const same=s.dir==='A'?P.across:P.down, other=s.dir==='A'?P.down:P.across;
+    const all=same.concat(other), i=all.indexOf(s);
+    return all[(i+delta+all.length)%all.length];
+  }
+  function move(dr,dc){
+    if(!curKey)return;
+    let [r,c]=curKey.split(',').map(Number);
+    const want=dr!==0?'D':'A';
+    if(want!==curDir){const s=slotAt(r,c,want);if(s){curDir=want;cur=s;render();refocus();return;}}
+    r+=dr;c+=dc;
+    while(r>=0&&r<H&&c>=0&&c<N){
+      if(cells[key(r,c)]){
+        curKey=key(r,c);
+        const s=slotAt(r,c,curDir)||slotAt(r,c,curDir==='A'?'D':'A');
+        if(s){cur=s;curDir=s.dir;}
+        render();refocus();return;
+      }
+      r+=dr;c+=dc;
+    }
+  }
+  function handleKey(k){
+    if(XW.anyOverlayOpen())return;
+    if(k==='Backspace')return backspace();
+    if(k==='ArrowRight')return move(0,1);
+    if(k==='ArrowLeft') return move(0,-1);
+    if(k==='ArrowUp')   return move(-1,0);
+    if(k==='ArrowDown') return move(1,0);
+    if(k===' '){if(spcClear){setLetter(curKey,'');advance();}else{toggleDir();render();refocus();}return;}
+    if(k==='Tab'){const nx=nextSlot(cur);if(nx){cur=nx;curDir=nx.dir;curKey=nx.cells[0];render();refocus();}return;}
+    if(/^[a-zA-Z]$/.test(k)&&curKey){setLetter(curKey,k.toUpperCase());advance();save();checkWin();}
+  }
+  board.addEventListener('keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    const k=e.key;
+    if(['Backspace','ArrowRight','ArrowLeft','ArrowUp','ArrowDown',' ','Tab'].includes(k)||/^[a-zA-Z]$/.test(k)){
+      e.preventDefault();handleKey(k);
+    }
+  });
+
+  /* on-screen keyboard (223:23785) */
+  const DEL='⌫';
+  const kb=document.getElementById('keyboard');
+  [{cls:'',keys:['Q','W','E','R','T','Y','U','I','O','P']},
+   {cls:'r2',keys:['A','S','D','F','G','H','J','K','L']},
+   {cls:'',keys:['123','Z','X','C','V','B','N','M',DEL]}].forEach(row=>{
+    const rd=document.createElement('div');rd.className='kbrow'+(row.cls?' '+row.cls:'');
+    row.keys.forEach(k=>{
+      const b=document.createElement('button');b.type='button';b.className='kbkey';
+      if(k===DEL){b.classList.add('sp');b.setAttribute('aria-label','Backspace');b.innerHTML=XW.icon('i-backspace',18);}
+      else if(k==='123'){b.classList.add('sp');b.textContent='123';b.setAttribute('aria-label','Numbers');}
+      else{b.textContent=k;b.setAttribute('aria-label',k);}
+      b.addEventListener('click',ev=>{ev.preventDefault();if(k===DEL)handleKey('Backspace');else if(k!=='123')handleKey(k);});
+      rd.appendChild(b);
+    });
+    kb.appendChild(rd);
+  });
+
+  /* mobile clue-list screen (224:38919) */
+  const clScroll=document.getElementById('clScroll');
+  let cluesOpen=false;
+  (function head(){
+    const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    let h=P.title||'Crossword';
+    if(P.date){const d=new Date(P.date+'T00:00:00');
+      if(!isNaN(d))h='L.A. Times, '+DOW[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();}
+    document.getElementById('clDate').textContent=h;
+    document.getElementById('clSub').textContent=P.caption||'';
+  })();
+  function buildClueList(){
+    clScroll.innerHTML='';
+    [['Across',P.across],['Down',P.down]].forEach(([label,list],gi)=>{
+      const h=document.createElement('div');h.className='clSect'+(gi?' later':'');h.textContent=label;
+      clScroll.appendChild(h);
+      list.forEach(s=>{
+        const it=document.createElement('button');it.type='button';it.className='clItem';
+        it.setAttribute('aria-label',s.num+' '+label+', '+s.clue);
+        const row=document.createElement('div');row.className='clTextRow';
+        const n=document.createElement('span');n.className='clNum';n.textContent=s.num;
+        const t=document.createElement('span');t.className='clTxt';t.textContent=s.clue;
+        row.appendChild(n);row.appendChild(t);
+        const bx=document.createElement('div');bx.className='clBoxes';
+        s.cells.forEach(()=>{const sp=document.createElement('span');sp.className='clBox';bx.appendChild(sp);});
+        it.appendChild(row);it.appendChild(bx);
+        it.addEventListener('click',()=>{
+          if(cur===s)toggleDir(); else{cur=s;curDir=s.dir;curKey=s.cells[0];}
+          render();
+        });
+        s._cli=it;clScroll.appendChild(it);
+      });
+    });
+  }
+  function paintClueList(){
+    if(!cluesOpen)return;
+    [...P.across,...P.down].forEach(s=>{
+      if(!s._cli)return;
+      s._cli.classList.toggle('on',s===cur);
+      const boxes=s._cli.querySelectorAll('.clBox');
+      s.cells.forEach((k,i)=>{if(boxes[i]&&cells[k])boxes[i].textContent=cells[k].val.textContent;});
+    });
+    if(cur&&cur._cli&&cur._cli.scrollIntoView)cur._cli.scrollIntoView({block:'nearest'});
+  }
+  function setCluesOpen(v){
+    cluesOpen=v;
+    document.body.classList.toggle('clues-open',v);
+    const b=document.getElementById('clueListBtn');
+    if(b)b.setAttribute('aria-pressed',String(v));
+    if(v){buildClueList();paintClueList();}
+    sizeCells();
+  }
+  const clueListBtn=document.getElementById('clueListBtn');
+  if(clueListBtn)clueListBtn.addEventListener('click',e=>{e.stopPropagation();XW.closeMenus();setCluesOpen(!cluesOpen);});
+
+  const cb2=document.getElementById('cluebar2');
+  function step(delta){
+    if(!cur)return;
+    const nx=nextSlot(cur,delta);
+    if(!nx)return;
+    cur=nx;curDir=nx.dir;curKey=nx.cells[0];
+    render();refocus();
+  }
+  document.getElementById('cluePrev').addEventListener('click',e=>{e.stopPropagation();step(-1);});
+  document.getElementById('clueNext').addEventListener('click',e=>{e.stopPropagation();step(1);});
+  function paintCluebar2(){
+    if(cluesOpen){
+      cb2.querySelector('.cnum').textContent='';cb2.querySelector('.cdir').textContent='';
+      cb2.querySelector('.csep').textContent='';
+      cb2.querySelector('.ctxt').textContent='Click on the selected clue to switch direction';
+      return;
+    }
+    if(!cur)return;
+    cb2.querySelector('.cnum').textContent=cur.num;
+    cb2.querySelector('.cdir').textContent=cur.dir==='A'?'ACROSS':'DOWN';
+    cb2.querySelector('.csep').textContent='•';
+    cb2.querySelector('.ctxt').textContent=cur.clue;
+  }
+
+  /* ---- assist + scoring (rules from the How To Play copy) ---- */
+  const TARGET_SECS=15*60,PTS_WORD=10,PTS_REVEAL_LETTER=-1,PTS_PER_MIN_EARLY=15;
+  function scoreNow(){
+    let pts=0;
+    [...P.across,...P.down].forEach(s=>{
+      const solved=s.cells.every(k=>cells[k]&&cells[k].val.textContent===cells[k].sol);
+      const touched=s.cells.some(k=>revealedKeys.has(k));
+      if(solved&&!touched)pts+=PTS_WORD;
+    });
+    return pts+revealedKeys.size*PTS_REVEAL_LETTER;
+  }
+  function finalScore(){
+    let pts=scoreNow();
+    if(XW.timer.secs<TARGET_SECS)pts+=Math.floor((TARGET_SECS-XW.timer.secs)/60)*PTS_PER_MIN_EARLY;
+    return Math.max(0,pts);
+  }
+  function revealCells(keys){
+    keys.forEach(k=>{
+      const o=cells[k];if(!o)return;
+      if(o.val.textContent!==o.sol)revealedKeys.add(k);
+      o.val.textContent=o.sol;o.el.classList.remove('wrong');o.el.classList.add('revealed');
+    });
+    render();save();checkWin();XW.announce('Revealed');
+  }
+  function checkCells(keys){
+    let bad=0;
+    keys.forEach(k=>{
+      const o=cells[k];if(!o)return;
+      const v=o.val.textContent;
+      if(v){if(v!==o.sol){o.el.classList.add('wrong');bad++;}else o.el.classList.remove('wrong');}
+    });
+    XW.announce(bad?bad+' incorrect '+(bad===1?'letter':'letters'):'No mistakes found');
+  }
+  function assist(act){
+    XW.emit('assist_used',{action:act,puzzleId:puzId});
+    if(act==='reveal-letter')revealCells([curKey]);
+    else if(act==='reveal-word'&&cur)revealCells(cur.cells);
+    else if(act==='reveal-grid')XW.dialog('Reveal grid','Are you sure you want to reveal all the answers?',()=>revealCells(Object.keys(cells)));
+    else if(act==='check-letter')checkCells([curKey]);
+    else if(act==='check-word'&&cur)checkCells(cur.cells);
+    else if(act==='check-grid')checkCells(Object.keys(cells));
+    refocus();
+  }
+
+  /* ---- persistence: the whole session, not just letters ---- */
+  function save(){
+    XW.storage.save(puzId,{
+      letters:Object.keys(cells).reduce((o,k)=>{const v=cells[k].val.textContent;if(v)o[k]=v;return o;},{}),
+      elapsed:XW.timer.secs,
+      revealed:[...revealedKeys],
+      completed:won
+    });
+  }
+  function restore(){
+    const st=XW.storage.load(puzId);
+    if(!st)return;
+    const letters=st.letters||{};
+    for(const k in letters){
+      if(cells[k]){
+        cells[k].val.textContent=letters[k];
+        if(errorMode&&letters[k]!==cells[k].sol)cells[k].el.classList.add('wrong');
+      }
+    }
+    (st.revealed||[]).forEach(k=>{if(cells[k]){revealedKeys.add(k);cells[k].el.classList.add('revealed');}});
+    won=!!st.completed;
+    XW.timer.secs=st.elapsed||0;
+  }
+  function clearGrid(){
+    for(const k in cells){cells[k].val.textContent='';cells[k].el.classList.remove('wrong','revealed');}
+    revealedKeys.clear();won=false;
+    XW.storage.clear(puzId);XW.timer.reset();XW.timer.stopped=false;
+    render();refocus();XW.announce('Grid cleared');
+  }
+
+  /* ---- win ---- */
+  function checkWin(){
+    if(won)return;
+    for(const k in cells)if(cells[k].val.textContent!==cells[k].sol)return;
+    won=true;XW.timer.stop();save();
+    document.getElementById('winScore').textContent=finalScore();
+    document.getElementById('winTime').textContent=XW.fmtTime(XW.timer.secs);
+    XW.emit('game_complete',{puzzleId:puzId,score:finalScore(),elapsed:XW.timer.secs});
+    XW.announce('Puzzle solved');
+    setTimeout(()=>XW.openOverlay('winOverlay'),150);
+  }
+  document.getElementById('winMore').onclick=XW.goArchive;
+  document.getElementById('winShare').onclick=()=>{
+    const txt='Solved in '+XW.fmtTime(XW.timer.secs)+' for '+finalScore()+' points. '+XW.shareText('Crossword');
+    if(navigator.share)navigator.share({title:P.title||'Crossword',text:txt,url:XW.shareUrl()}).catch(()=>{});
+    else XW.share('copy',XW.shareUrl(),txt);
+  };
+
+  /* ---- settings ---- */
+  document.getElementById('settingsBtn').onclick=()=>XW.openOverlay('settingsOverlay');
+  function applyTimerVisibility(){document.getElementById('timerPill').classList.toggle('collapsed',!timerVisible);}
+  document.getElementById('timerPill').addEventListener('click',()=>{
+    timerVisible=!timerVisible;document.getElementById('setTimer').checked=timerVisible;applyTimerVisibility();refocus();
+  });
+  document.getElementById('applySettings').onclick=()=>{
+    errorMode=document.getElementById('setError').checked;
+    skipFilled=document.getElementById('setSkip').checked;
+    eowNext=document.getElementById('eowNext').checked;
+    spcClear=document.getElementById('spcClear').checked;
+    soundOn=document.getElementById('setSound').checked;
+    linkedClues=document.getElementById('setLinked').checked;
+    timerVisible=document.getElementById('setTimer').checked;
+    applyTimerVisibility();
+    Object.values(cells).forEach(o=>{
+      o.el.classList.remove('wrong');
+      if(errorMode&&o.val.textContent&&o.val.textContent!==o.sol)o.el.classList.add('wrong');
+    });
+    XW.closeOverlay(document.getElementById('settingsOverlay'));
+  };
+
+  /* ---- print (213:14706) ---- */
+  document.getElementById('printBtn').onclick=()=>XW.openOverlay('printOverlay');
+  let printFont=9;
+  const fsPrev=document.getElementById('fsPrev');
+  const paintFs=()=>{fsPrev.style.fontSize=printFont+'px';};
+  document.getElementById('fsDown').onclick=()=>{printFont=Math.max(7,printFont-1);paintFs();};
+  document.getElementById('fsUp').onclick=()=>{printFont=Math.min(14,printFont+1);paintFs();};
+  paintFs();
+  const inkSlider=document.getElementById('inkSlider'),inkPreview=document.getElementById('inkPreview');
+  const INK_MIN=160,INK_MAX=20;   // floor keeps the grid legible at the lightest setting
+  function inkColour(){
+    const pct=+inkSlider.value/100;
+    const lvl=Math.round(INK_MIN-(INK_MIN-INK_MAX)*pct);
+    return 'rgb('+lvl+','+lvl+','+lvl+')';
+  }
+  function paintInk(){
+    const col=inkColour();
+    inkPreview.querySelectorAll('span').forEach(s=>{
+      s.style.borderColor=col;if(s.classList.contains('k'))s.style.background=col;
+    });
+  }
+  inkSlider.addEventListener('input',paintInk);paintInk();
+
+  /* one <path> for every rule: a single stroke-width means the rasteriser cannot
+     give some lines more pixels than others, which is what the DOM grid's
+     independently-placed boxes were doing */
+  function buildPrintGrid(){
+    // aim for a ~390px board whatever the grid size, within sane per-cell bounds
+    const C=Math.max(20,Math.min(60,Math.round(390/Math.max(N,H)))),
+          SW=1.6,ink=inkColour(),w=N*C,h=H*C;
+    let blocks='',nums='',vals='',d='';
+    for(let r=0;r<H;r++)for(let c=0;c<N;c++){
+      const o=cells[key(r,c)],x=c*C,y=r*C;
+      if(!o){blocks+='<rect x="'+x+'" y="'+y+'" width="'+C+'" height="'+C+'"/>';continue;}
+      const n=P.num[r][c];
+      if(n)nums+='<text x="'+(x+1.5)+'" y="'+(y+C*0.29)+'">'+n+'</text>';
+      const v=o.val.textContent;
+      if(v)vals+='<text x="'+(x+C/2)+'" y="'+(y+C*0.78)+'" text-anchor="middle">'+v+'</text>';
+    }
+    for(let i=0;i<=N;i++)d+='M'+(i*C)+' 0V'+h;
+    for(let j=0;j<=H;j++)d+='M0 '+(j*C)+'H'+w;
+    const svg=document.getElementById('printGrid');
+    svg.setAttribute('viewBox','0 0 '+w+' '+h);svg.setAttribute('width',w);svg.setAttribute('height',h);
+    svg.innerHTML='<rect width="'+w+'" height="'+h+'" fill="#fff"/>'+
+      '<g fill="'+ink+'">'+blocks+'</g>'+
+      '<path d="'+d+'" stroke="'+ink+'" stroke-width="'+SW+'" fill="none" shape-rendering="crispEdges"/>'+
+      '<g fill="#000" font-family="Roboto,sans-serif" font-size="'+(C*0.25)+'">'+nums+'</g>'+
+      '<g fill="#000" font-family="Roboto,sans-serif" font-weight="700" font-size="'+(C*0.55)+'">'+vals+'</g>';
+  }
+  window.addEventListener('beforeprint',buildPrintGrid);   // also covers Ctrl+P
+  document.getElementById('doPrint').onclick=()=>{
+    const mode=document.querySelector('input[name="pmode"]:checked').value;
+    const snap={};for(const k in cells)snap[k]=cells[k].val.textContent;
+    if(mode==='blank')for(const k in cells)cells[k].val.textContent='';
+    if(mode==='solution')for(const k in cells)cells[k].val.textContent=cells[k].sol;
+    document.documentElement.style.setProperty('--print-font',printFont+'px');
+    buildPrintGrid();
+    XW.closeOverlay(document.getElementById('printOverlay'));
+    setTimeout(()=>{
+      window.print();
+      for(const k in cells)cells[k].val.textContent=snap[k];
+      render();
+    },60);
+  };
+
+  /* ---- support ticket ---- */
+  (function ticket(){
+    const k='lat:games:ticket:'+puzId;
+    let t=null;try{t=localStorage.getItem(k);}catch(_){}
+    if(!t){const seg=()=>Math.random().toString(36).slice(2,9);t='lat-'+seg()+'-'+seg();
+      try{localStorage.setItem(k,t);}catch(_){}}
+    document.getElementById('ticketNo').textContent=t;
+    document.getElementById('copyrightLine').textContent='© '+new Date().getFullYear();
+  })();
+
+  /* ---- menu wiring ---- */
+  XW.wireChrome({
+    title:()=>P.title||'Crossword',
+    assist:assist,
+    menu(act){
+      if(act==='more')XW.goArchive();
+      else if(act==='howto')XW.openOverlay('howtoOverlay');
+      else if(act==='support')XW.openOverlay('supportOverlay');
+      else if(act==='save'){save();XW.dialog('Save','Your puzzle progress is saved');}
+      else if(act==='restart')XW.dialog('Start Again','Are you sure you want to restart the puzzle?',clearGrid,{cancel:'Cancel',ok:'Start again'});
+      else refocus();
+    }
+  });
+  document.getElementById('dlgClose').onclick=()=>XW.closeOverlay(document.getElementById('dialogOverlay'));
+  document.getElementById('dlgOk').onclick=()=>{
+    const a=XW.dlgAction;XW.closeOverlay(document.getElementById('dialogOverlay'));if(a)a();
+  };
+
+  /* ---- sizing: the mobile stack must fit the viewport, never scroll ---- */
+  /* Cap the cell only to stop a tiny grid becoming absurd — the container is
+     what should govern, so the board fills the space at any size. A cap of 38
+     was sized for 15x15 and left a 5x5 stranded at 190px. */
+  const MAX_CELL=84, MOBILE_PAD=20;   // MOBILE_PAD = 8px above + 12px below
+  function sizeCells(){
+    const hOf=(n,fb)=>(n&&n.offsetHeight)?n.offsetHeight:fb;
+    let colW,availH;
+    if(isMobile()){
+      colW=app.clientWidth;
+      availH=app.clientHeight-hOf($('.topbar'),56)-hOf($('#mobiledock'),242)-MOBILE_PAD;
+    }else{
+      colW=board.parentElement.clientWidth;
+      availH=app.clientHeight-hOf($('.topbar'),56)-hOf($('#cluebar'),52)-hOf($('#caption'),20)-46;
+    }
+    if(!colW||colW<60)colW=400;
+    if(!availH||availH<80)availH=400;
+    board.style.setProperty('--cell',Math.max(15,Math.min(colW/N,availH/N,MAX_CELL)).toFixed(3)+'px');
+  }
+  addEventListener('resize',sizeCells);
+
+  /* ---- boot ---- */
+  restore();
+  XW.timer.onTick=s=>{document.getElementById('timer').textContent=XW.fmtTime(s);};
+  XW.timer.start(XW.timer.secs);
+  if(won)XW.timer.stop();
+  applyTimerVisibility();
+  sizeCells();
+  selectSlot(P.across[0]);focusCell(P.across[0].cells[0]);
+  XW.emit('game_start',{puzzleId:puzId,engine:'crossword'});
+})();
+</script>
+</body>
+</html>

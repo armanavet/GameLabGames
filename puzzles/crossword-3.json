@@ -1,0 +1,1179 @@
+{
+ "title": "Crossword 3",
+ "H": 15,
+ "W": 15,
+ "grid": [
+  [
+   "P",
+   "L",
+   "A",
+   "Y",
+   null,
+   "S",
+   "C",
+   "O",
+   "R",
+   "E",
+   null,
+   "T",
+   "I",
+   "M",
+   "E"
+  ],
+  [
+   "R",
+   "U",
+   "L",
+   "E",
+   null,
+   "L",
+   "I",
+   "G",
+   "H",
+   "T",
+   null,
+   "O",
+   "N",
+   "Y",
+   "X"
+  ],
+  [
+   "Y",
+   "E",
+   "L",
+   "L",
+   null,
+   "A",
+   "A",
+   "R",
+   "I",
+   "A",
+   "N",
+   "A",
+   null,
+   null,
+   null
+  ],
+  [
+   null,
+   null,
+   null,
+   "L",
+   "I",
+   "P",
+   null,
+   "E",
+   "N",
+   "L",
+   "A",
+   "C",
+   "E",
+   null,
+   null
+  ],
+  [
+   "F",
+   "L",
+   "O",
+   "O",
+   null,
+   null,
+   "C",
+   null,
+   "O",
+   null,
+   "S",
+   "T",
+   "O",
+   "P",
+   null
+  ],
+  [
+   "E",
+   "A",
+   "R",
+   "W",
+   "E",
+   "L",
+   "L",
+   null,
+   null,
+   "A",
+   "C",
+   null,
+   "W",
+   "O",
+   "E"
+  ],
+  [
+   "A",
+   "T",
+   null,
+   null,
+   null,
+   "I",
+   "O",
+   "W",
+   "A",
+   null,
+   "A",
+   "N",
+   "Y",
+   null,
+   null
+  ],
+  [
+   "T",
+   "E",
+   "A",
+   null,
+   "P",
+   "E",
+   "S",
+   "A",
+   "D",
+   "O",
+   "R",
+   null,
+   "N",
+   "D",
+   "A"
+  ],
+  [
+   null,
+   null,
+   "B",
+   "I",
+   "O",
+   null,
+   "E",
+   "Y",
+   "E",
+   "S",
+   null,
+   null,
+   null,
+   "E",
+   "T"
+  ],
+  [
+   "B",
+   "A",
+   "Y",
+   null,
+   "T",
+   "O",
+   null,
+   null,
+   "A",
+   "T",
+   "M",
+   "Y",
+   "A",
+   "G",
+   "E"
+  ],
+  [
+   null,
+   "A",
+   "S",
+   "I",
+   "A",
+   null,
+   "O",
+   null,
+   "L",
+   null,
+   null,
+   "A",
+   "S",
+   "S",
+   "N"
+  ],
+  [
+   null,
+   null,
+   "S",
+   "A",
+   "T",
+   "I",
+   "R",
+   "E",
+   null,
+   "A",
+   "I",
+   "M",
+   null,
+   null,
+   null
+  ],
+  [
+   null,
+   null,
+   null,
+   "M",
+   "O",
+   "N",
+   "A",
+   "C",
+   "A",
+   "N",
+   null,
+   "A",
+   "H",
+   "O",
+   "Y"
+  ],
+  [
+   "O",
+   "D",
+   "E",
+   "S",
+   null,
+   "G",
+   "L",
+   "U",
+   "O",
+   "N",
+   null,
+   "H",
+   "O",
+   "L",
+   "E"
+  ],
+  [
+   "H",
+   "E",
+   "R",
+   "O",
+   null,
+   "A",
+   "S",
+   "A",
+   "N",
+   "A",
+   null,
+   "A",
+   "G",
+   "E",
+   "S"
+  ]
+ ],
+ "num": [
+  [
+   1,
+   2,
+   3,
+   4,
+   0,
+   5,
+   6,
+   7,
+   8,
+   9,
+   0,
+   10,
+   11,
+   12,
+   13
+  ],
+  [
+   14,
+   0,
+   0,
+   0,
+   0,
+   15,
+   0,
+   0,
+   0,
+   0,
+   0,
+   16,
+   0,
+   0,
+   0
+  ],
+  [
+   17,
+   0,
+   0,
+   0,
+   0,
+   18,
+   0,
+   0,
+   0,
+   0,
+   19,
+   0,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   20,
+   0,
+   0,
+   0,
+   21,
+   0,
+   0,
+   0,
+   0,
+   22,
+   0,
+   0
+  ],
+  [
+   23,
+   24,
+   25,
+   0,
+   0,
+   0,
+   26,
+   0,
+   0,
+   0,
+   27,
+   0,
+   0,
+   28,
+   0
+  ],
+  [
+   29,
+   0,
+   0,
+   0,
+   0,
+   30,
+   0,
+   0,
+   0,
+   31,
+   0,
+   0,
+   32,
+   0,
+   0
+  ],
+  [
+   33,
+   0,
+   0,
+   0,
+   0,
+   34,
+   0,
+   35,
+   36,
+   0,
+   37,
+   0,
+   0,
+   0,
+   0
+  ],
+  [
+   38,
+   0,
+   39,
+   0,
+   40,
+   0,
+   0,
+   0,
+   0,
+   41,
+   0,
+   0,
+   42,
+   43,
+   44
+  ],
+  [
+   0,
+   0,
+   45,
+   0,
+   0,
+   0,
+   46,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   47,
+   0
+  ],
+  [
+   48,
+   49,
+   0,
+   0,
+   50,
+   0,
+   0,
+   0,
+   51,
+   0,
+   0,
+   52,
+   53,
+   0,
+   0
+  ],
+  [
+   0,
+   54,
+   0,
+   55,
+   0,
+   0,
+   56,
+   0,
+   0,
+   0,
+   0,
+   57,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   58,
+   0,
+   0,
+   59,
+   0,
+   60,
+   0,
+   61,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   62,
+   0,
+   0,
+   0,
+   0,
+   63,
+   0,
+   0,
+   64,
+   65,
+   66,
+   67
+  ],
+  [
+   68,
+   69,
+   70,
+   0,
+   0,
+   71,
+   0,
+   0,
+   0,
+   0,
+   0,
+   72,
+   0,
+   0,
+   0
+  ],
+  [
+   73,
+   0,
+   0,
+   0,
+   0,
+   74,
+   0,
+   0,
+   0,
+   0,
+   0,
+   75,
+   0,
+   0,
+   0
+  ]
+ ],
+ "across": [
+  {
+   "num": 1,
+   "row": 0,
+   "col": 0,
+   "answer": "PLAY",
+   "clue": "Take part in a game",
+   "len": 4
+  },
+  {
+   "num": 5,
+   "row": 0,
+   "col": 5,
+   "answer": "SCORE",
+   "clue": "Points earned in a game",
+   "len": 5
+  },
+  {
+   "num": 10,
+   "row": 0,
+   "col": 11,
+   "answer": "TIME",
+   "clue": "Duration or clock reading",
+   "len": 4
+  },
+  {
+   "num": 14,
+   "row": 1,
+   "col": 0,
+   "answer": "RULE",
+   "clue": "Official game guideline",
+   "len": 4
+  },
+  {
+   "num": 15,
+   "row": 1,
+   "col": 5,
+   "answer": "LIGHT",
+   "clue": "Opposite of heavy",
+   "len": 5
+  },
+  {
+   "num": 16,
+   "row": 1,
+   "col": 11,
+   "answer": "ONYX",
+   "clue": "Black gemstone",
+   "len": 4
+  },
+  {
+   "num": 17,
+   "row": 2,
+   "col": 0,
+   "answer": "YELL",
+   "clue": "Shout loudly",
+   "len": 4
+  },
+  {
+   "num": 18,
+   "row": 2,
+   "col": 5,
+   "answer": "AARIANA",
+   "clue": "Variant spelling of a female name",
+   "len": 7
+  },
+  {
+   "num": 20,
+   "row": 3,
+   "col": 3,
+   "answer": "LIP",
+   "clue": "Place for gloss",
+   "len": 3
+  },
+  {
+   "num": 21,
+   "row": 3,
+   "col": 7,
+   "answer": "ENLACE",
+   "clue": "Tie up",
+   "len": 6
+  },
+  {
+   "num": 23,
+   "row": 4,
+   "col": 0,
+   "answer": "FLOO",
+   "clue": "Magical travel network in Harry Potter",
+   "len": 4
+  },
+  {
+   "num": 27,
+   "row": 4,
+   "col": 10,
+   "answer": "STOP",
+   "clue": "Come to a halt",
+   "len": 4
+  },
+  {
+   "num": 29,
+   "row": 5,
+   "col": 0,
+   "answer": "EARWELL",
+   "clue": "Entryway of the ear canal",
+   "len": 7
+  },
+  {
+   "num": 31,
+   "row": 5,
+   "col": 9,
+   "answer": "AC",
+   "clue": "Electrical current abbreviation",
+   "len": 2
+  },
+  {
+   "num": 32,
+   "row": 5,
+   "col": 12,
+   "answer": "WOE",
+   "clue": "Great sorrow",
+   "len": 3
+  },
+  {
+   "num": 33,
+   "row": 6,
+   "col": 0,
+   "answer": "AT",
+   "clue": "Location indicator",
+   "len": 2
+  },
+  {
+   "num": 34,
+   "row": 6,
+   "col": 5,
+   "answer": "IOWA",
+   "clue": "Hawkeye State",
+   "len": 4
+  },
+  {
+   "num": 37,
+   "row": 6,
+   "col": 10,
+   "answer": "ANY",
+   "clue": "No matter which",
+   "len": 3
+  },
+  {
+   "num": 38,
+   "row": 7,
+   "col": 0,
+   "answer": "TEA",
+   "clue": "Brewed hot beverage",
+   "len": 3
+  },
+  {
+   "num": 40,
+   "row": 7,
+   "col": 4,
+   "answer": "PESADOR",
+   "clue": "Spanish for \"weigher\"",
+   "len": 7
+  },
+  {
+   "num": 42,
+   "row": 7,
+   "col": 12,
+   "answer": "NDA",
+   "clue": "Confidentiality contract, briefly",
+   "len": 3
+  },
+  {
+   "num": 45,
+   "row": 8,
+   "col": 2,
+   "answer": "BIO",
+   "clue": "Short life story",
+   "len": 3
+  },
+  {
+   "num": 46,
+   "row": 8,
+   "col": 6,
+   "answer": "EYES",
+   "clue": "Organs of sight",
+   "len": 4
+  },
+  {
+   "num": 47,
+   "row": 8,
+   "col": 13,
+   "answer": "ET",
+   "clue": "Spielberg's friendly alien",
+   "len": 2
+  },
+  {
+   "num": 48,
+   "row": 9,
+   "col": 0,
+   "answer": "BAY",
+   "clue": "Coastal inlet",
+   "len": 3
+  },
+  {
+   "num": 50,
+   "row": 9,
+   "col": 4,
+   "answer": "TO",
+   "clue": "Directional preposition",
+   "len": 2
+  },
+  {
+   "num": 51,
+   "row": 9,
+   "col": 8,
+   "answer": "ATMYAGE",
+   "clue": "\"Considering how old I am...\"",
+   "len": 7
+  },
+  {
+   "num": 54,
+   "row": 10,
+   "col": 1,
+   "answer": "ASIA",
+   "clue": "China's Continent",
+   "len": 4
+  },
+  {
+   "num": 57,
+   "row": 10,
+   "col": 11,
+   "answer": "ASSN",
+   "clue": "Professional grp.",
+   "len": 4
+  },
+  {
+   "num": 58,
+   "row": 11,
+   "col": 2,
+   "answer": "SATIRE",
+   "clue": "Humor using irony and exaggeration",
+   "len": 6
+  },
+  {
+   "num": 61,
+   "row": 11,
+   "col": 9,
+   "answer": "AIM",
+   "clue": "Goal or target",
+   "len": 3
+  },
+  {
+   "num": 62,
+   "row": 12,
+   "col": 3,
+   "answer": "MONACAN",
+   "clue": "Native people of Virginia",
+   "len": 7
+  },
+  {
+   "num": 64,
+   "row": 12,
+   "col": 11,
+   "answer": "AHOY",
+   "clue": "Sailor's greeting",
+   "len": 4
+  },
+  {
+   "num": 68,
+   "row": 13,
+   "col": 0,
+   "answer": "ODES",
+   "clue": "Lyrical poems",
+   "len": 4
+  },
+  {
+   "num": 71,
+   "row": 13,
+   "col": 5,
+   "answer": "GLUON",
+   "clue": "Theoretical massless particle",
+   "len": 5
+  },
+  {
+   "num": 72,
+   "row": 13,
+   "col": 11,
+   "answer": "HOLE",
+   "clue": "Golf target",
+   "len": 4
+  },
+  {
+   "num": 73,
+   "row": 14,
+   "col": 0,
+   "answer": "HERO",
+   "clue": "Brave protagonist",
+   "len": 4
+  },
+  {
+   "num": 74,
+   "row": 14,
+   "col": 5,
+   "answer": "ASANA",
+   "clue": "Yoga pose",
+   "len": 5
+  },
+  {
+   "num": 75,
+   "row": 14,
+   "col": 11,
+   "answer": "AGES",
+   "clue": "Long periods of time",
+   "len": 4
+  }
+ ],
+ "down": [
+  {
+   "num": 1,
+   "row": 0,
+   "col": 0,
+   "answer": "PRY",
+   "clue": "Force open",
+   "len": 3
+  },
+  {
+   "num": 2,
+   "row": 0,
+   "col": 1,
+   "answer": "LUE",
+   "clue": "Scottish term for a warm breeze",
+   "len": 3
+  },
+  {
+   "num": 3,
+   "row": 0,
+   "col": 2,
+   "answer": "ALL",
+   "clue": "Every one",
+   "len": 3
+  },
+  {
+   "num": 4,
+   "row": 0,
+   "col": 3,
+   "answer": "YELLOW",
+   "clue": "Color between green and orange",
+   "len": 6
+  },
+  {
+   "num": 5,
+   "row": 0,
+   "col": 5,
+   "answer": "SLAP",
+   "clue": "Strike with an open hand",
+   "len": 4
+  },
+  {
+   "num": 6,
+   "row": 0,
+   "col": 6,
+   "answer": "CIA",
+   "clue": "U.S. intelligence agency",
+   "len": 3
+  },
+  {
+   "num": 7,
+   "row": 0,
+   "col": 7,
+   "answer": "OGRE",
+   "clue": "Large fairy-tale monster",
+   "len": 4
+  },
+  {
+   "num": 8,
+   "row": 0,
+   "col": 8,
+   "answer": "RHINO",
+   "clue": "Horned African mammal",
+   "len": 5
+  },
+  {
+   "num": 9,
+   "row": 0,
+   "col": 9,
+   "answer": "ETAL",
+   "clue": "\"And others,\" in citations",
+   "len": 4
+  },
+  {
+   "num": 10,
+   "row": 0,
+   "col": 11,
+   "answer": "TOACT",
+   "clue": "Begin to perform",
+   "len": 5
+  },
+  {
+   "num": 11,
+   "row": 0,
+   "col": 12,
+   "answer": "IN",
+   "clue": "Opposite of out",
+   "len": 2
+  },
+  {
+   "num": 12,
+   "row": 0,
+   "col": 13,
+   "answer": "MY",
+   "clue": "Possessive pronoun",
+   "len": 2
+  },
+  {
+   "num": 13,
+   "row": 0,
+   "col": 14,
+   "answer": "EX",
+   "clue": "Former partner",
+   "len": 2
+  },
+  {
+   "num": 19,
+   "row": 2,
+   "col": 10,
+   "answer": "NASCAR",
+   "clue": "American stock car racing organization",
+   "len": 6
+  },
+  {
+   "num": 22,
+   "row": 3,
+   "col": 12,
+   "answer": "EOWYN",
+   "clue": "Shieldmaiden in The Lord of the Rings",
+   "len": 5
+  },
+  {
+   "num": 23,
+   "row": 4,
+   "col": 0,
+   "answer": "FEAT",
+   "clue": "Impressive achievement",
+   "len": 4
+  },
+  {
+   "num": 24,
+   "row": 4,
+   "col": 1,
+   "answer": "LATE",
+   "clue": "Not on time",
+   "len": 4
+  },
+  {
+   "num": 25,
+   "row": 4,
+   "col": 2,
+   "answer": "OR",
+   "clue": "Either ___",
+   "len": 2
+  },
+  {
+   "num": 26,
+   "row": 4,
+   "col": 6,
+   "answer": "CLOSE",
+   "clue": "Shut",
+   "len": 5
+  },
+  {
+   "num": 28,
+   "row": 4,
+   "col": 13,
+   "answer": "PO",
+   "clue": "Kung Fu Panda's hero",
+   "len": 2
+  },
+  {
+   "num": 30,
+   "row": 5,
+   "col": 5,
+   "answer": "LIE",
+   "clue": "Tell an untruth",
+   "len": 3
+  },
+  {
+   "num": 35,
+   "row": 6,
+   "col": 7,
+   "answer": "WAY",
+   "clue": "Method or route",
+   "len": 3
+  },
+  {
+   "num": 36,
+   "row": 6,
+   "col": 8,
+   "answer": "ADEAL",
+   "clue": "A bargain (archaic spelling)",
+   "len": 5
+  },
+  {
+   "num": 39,
+   "row": 7,
+   "col": 2,
+   "answer": "ABYSS",
+   "clue": "Bottomless depth",
+   "len": 5
+  },
+  {
+   "num": 40,
+   "row": 7,
+   "col": 4,
+   "answer": "POTATO",
+   "clue": "Spud",
+   "len": 6
+  },
+  {
+   "num": 41,
+   "row": 7,
+   "col": 9,
+   "answer": "OST",
+   "clue": "Film soundtrack abbreviation",
+   "len": 3
+  },
+  {
+   "num": 43,
+   "row": 7,
+   "col": 13,
+   "answer": "DEGS",
+   "clue": "Informal abbreviation for degrees",
+   "len": 4
+  },
+  {
+   "num": 44,
+   "row": 7,
+   "col": 14,
+   "answer": "ATEN",
+   "clue": "Egyptian sun deity",
+   "len": 4
+  },
+  {
+   "num": 49,
+   "row": 9,
+   "col": 1,
+   "answer": "AA",
+   "clue": "Battery size",
+   "len": 2
+  },
+  {
+   "num": 52,
+   "row": 9,
+   "col": 11,
+   "answer": "YAMAHA",
+   "clue": "Japanese musical instrument manufacturer",
+   "len": 6
+  },
+  {
+   "num": 53,
+   "row": 9,
+   "col": 12,
+   "answer": "AS",
+   "clue": "\"___ I was saying\"",
+   "len": 2
+  },
+  {
+   "num": 55,
+   "row": 10,
+   "col": 3,
+   "answer": "IAMSO",
+   "clue": "Begins the phrase \"___ happy\"",
+   "len": 5
+  },
+  {
+   "num": 56,
+   "row": 10,
+   "col": 6,
+   "answer": "ORALS",
+   "clue": "Spoken exams",
+   "len": 5
+  },
+  {
+   "num": 59,
+   "row": 11,
+   "col": 5,
+   "answer": "INGA",
+   "clue": "Scandinavian female name",
+   "len": 4
+  },
+  {
+   "num": 60,
+   "row": 11,
+   "col": 7,
+   "answer": "ECUA",
+   "clue": "Country on the Pac. Ocean",
+   "len": 4
+  },
+  {
+   "num": 61,
+   "row": 11,
+   "col": 9,
+   "answer": "ANNA",
+   "clue": "Tolstoy's Karenina",
+   "len": 4
+  },
+  {
+   "num": 63,
+   "row": 12,
+   "col": 8,
+   "answer": "AON",
+   "clue": "Insurance company",
+   "len": 3
+  },
+  {
+   "num": 65,
+   "row": 12,
+   "col": 12,
+   "answer": "HOG",
+   "clue": "Farm pig",
+   "len": 3
+  },
+  {
+   "num": 66,
+   "row": 12,
+   "col": 13,
+   "answer": "OLE",
+   "clue": "Cheer at a flamenco performance",
+   "len": 3
+  },
+  {
+   "num": 67,
+   "row": 12,
+   "col": 14,
+   "answer": "YES",
+   "clue": "Affirmative reply",
+   "len": 3
+  },
+  {
+   "num": 68,
+   "row": 13,
+   "col": 0,
+   "answer": "OH",
+   "clue": "Expression of surprise",
+   "len": 2
+  },
+  {
+   "num": 69,
+   "row": 13,
+   "col": 1,
+   "answer": "DE",
+   "clue": "\"Of,\" in French",
+   "len": 2
+  },
+  {
+   "num": 70,
+   "row": 13,
+   "col": 2,
+   "answer": "ER",
+   "clue": "Hesitation sound",
+   "len": 2
+  }
+ ]
+}
