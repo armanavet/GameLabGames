@@ -89,12 +89,18 @@
        centring split the leftover height evenly and pushed the grid well clear
        of the toolbar. Slack now collects above the clue bar, which sits with
        the keyboard at the bottom where it belongs. */
-    .main{display:flex;flex-direction:column;overflow:hidden;padding:8px 12px 12px;flex:1 1 0;
+    /* .main sizes to the grid rather than eating the leftover height — that is
+       what pushed the dock to the bottom and opened a gap under the board. */
+    .main{display:flex;flex-direction:column;overflow:hidden;padding:8px 12px 12px;flex:0 1 auto;
           min-height:0;justify-content:flex-start}
     .gridwrap{flex:0 1 auto;min-height:0;justify-content:flex-start}
     .clues,.caption{display:none}
     /* clues-list-section 223:23782 — repeated clue bar, 13px gap, keyboard */
-    #mobiledock{display:flex;flex-direction:column;gap:13px;flex:none;
+    /* The dock now takes the remaining height and starts right under the grid.
+       The keyboard stretches into whatever is left so its grey field reaches the
+       bottom of the screen — keys stay 42px, nothing floats mid-screen. */
+    #mobiledock{display:flex;flex-direction:column;gap:13px;flex:1 1 auto;min-height:0;
+                justify-content:flex-start;
                 padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
     #cluebar2{flex:none}
     /* the clue appears once on mobile, above the keyboard — the top bar was a
