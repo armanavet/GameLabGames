@@ -96,9 +96,11 @@
     .gridwrap{flex:0 1 auto;min-height:0;justify-content:flex-start}
     .clues,.caption{display:none}
     /* clues-list-section 223:23782 — repeated clue bar, 13px gap, keyboard */
-    /* The dock now takes the remaining height and starts right under the grid.
-       The keyboard stretches into whatever is left so its grey field reaches the
-       bottom of the screen — keys stay 42px, nothing floats mid-screen. */
+    /* A 15x15 board on a tall phone is width-bound, so ~150px of height is left
+       over. Everything stacks straight after the grid — clue bar, then keyboard —
+       and the slack falls below the keyboard rather than being inserted between
+       the pieces or inflating the grey field. Keeps the controls together and
+       reachable at narrow widths. */
     #mobiledock{display:flex;flex-direction:column;gap:13px;flex:1 1 auto;min-height:0;
                 justify-content:flex-start;
                 padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
