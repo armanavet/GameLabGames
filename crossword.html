@@ -82,10 +82,10 @@
   #mobiledock{display:none}
 
   @media(max-width:720px){
-    /* MOBILE_PAD below must match this padding — the grid is height-constrained
-       here, so without it the board fills availH exactly and sits flush against
-       the clue bar. */
-    .main{display:flex;flex-direction:column;overflow:hidden;padding:8px 0 12px;flex:1 1 0;
+    /* MOBILE_PAD / MOBILE_SIDE below must match this padding. Vertical keeps the
+       board off the clue bar; horizontal keeps it off the screen edges. The clue
+       bar and keyboard stay full-bleed, as designed. */
+    .main{display:flex;flex-direction:column;overflow:hidden;padding:8px 12px 12px;flex:1 1 0;
           min-height:0;justify-content:center}
     .gridwrap{flex:1 1 0;min-height:0;justify-content:center}
     .clues,.caption{display:none}
@@ -799,12 +799,12 @@
   /* Cap the cell only to stop a tiny grid becoming absurd — the container is
      what should govern, so the board fills the space at any size. A cap of 38
      was sized for 15x15 and left a 5x5 stranded at 190px. */
-  const MAX_CELL=84, MOBILE_PAD=20;   // MOBILE_PAD = 8px above + 12px below
+  const MAX_CELL=84, MOBILE_PAD=20, MOBILE_SIDE=24;   // 8+12 vertical, 12+12 horizontal
   function sizeCells(){
     const hOf=(n,fb)=>(n&&n.offsetHeight)?n.offsetHeight:fb;
     let colW,availH;
     if(isMobile()){
-      colW=app.clientWidth;
+      colW=app.clientWidth-MOBILE_SIDE;
       availH=app.clientHeight-hOf($('.topbar'),56)-hOf($('#mobiledock'),242)-MOBILE_PAD;
     }else{
       colW=board.parentElement.clientWidth;
@@ -815,6 +815,12 @@
     board.style.setProperty('--cell',Math.max(15,Math.min(colW/N,availH/N,MAX_CELL)).toFixed(3)+'px');
   }
   addEventListener('resize',sizeCells);
+  /* A longer clue wraps to more lines, which changes the dock height that
+     sizeCells subtracts. Without this the grid keeps its old size and overflows
+     into the clue bar on the first long clue. */
+  if(window.ResizeObserver){
+    new ResizeObserver(()=>sizeCells()).observe(document.getElementById('mobiledock'));
+  }
 
   /* ---- boot ---- */
   restore();
