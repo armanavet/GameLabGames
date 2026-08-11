@@ -4,6 +4,28 @@
   "_note": "Drop a puzzle .json into puzzles/ and run:  python3 puzzle-tool.py index\nEverything here is plain readable JSON — edit dates, titles and bylines by hand or with puzzle-tool.py. Answers are no longer base64'd; see CODE-REVIEW.md §5 for why that trade was made.",
   "index": [
     {
+      "id": "crossword-4",
+      "title": "Crossword 4",
+      "date": "",
+      "size": "15x15",
+      "cells": 167,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/crossword-4.json"
+    },
+    {
+      "id": "crossword-5",
+      "title": "Crossword 5",
+      "date": "",
+      "size": "15x15",
+      "cells": 179,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/crossword-5.json"
+    },
+    {
       "id": "crossword-1",
       "title": "Crossword 1",
       "date": "2026-08-07",
