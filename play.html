@@ -60,9 +60,12 @@ const { id: gid, game: g } = resolveGame(want);
 /* Pass our own URL down as ?canonical= so the game shares the page the reader
    is actually on, not the asset host. LAT's page must do the same. */
 const canon = '&canonical=' + encodeURIComponent(location.href);
-const src = p                  ? g.player + '?p=' + encodeURIComponent(p) + canon
+/* the game rides along to the player too: one crossword.html serves Daily,
+   Midi and Mini, and it can only pick the right index if it is told which. */
+const src = p                  ? g.player + '?game=' + encodeURIComponent(gid) +
+                                 '&p=' + encodeURIComponent(p) + canon
           : g.archive          ? g.archive + '?game=' + encodeURIComponent(gid) + canon
-                               : g.player + '?' + canon.slice(1);
+                               : g.player + '?game=' + encodeURIComponent(gid) + canon;
 
 const frame = document.getElementById('game');
 frame.src = src;

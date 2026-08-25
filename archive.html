@@ -76,9 +76,24 @@
   document.title=G.label;
   XW.gameId=GID;
 
-  let man;
-  try{ man=await (await fetch(G.manifest||'puzzles.json',{cache:'no-store'})).json(); }
-  catch(e){ listEl.innerHTML='<div class="empty">Could not load <b>puzzles.json</b>. Serve this over http(s), not file://.</div>'; return; }
+  /* Backend first when configured — it withholds scheduled puzzles, so the
+     archive cannot list tomorrow's. Falls back to the static index. */
+  let man=null;
+  const API=window.apiBase?window.apiBase(G):'';
+  if(API){
+    try{ man=await (await fetch(API+'/api/index?game='+encodeURIComponent(GID),{cache:'no-store'})).json(); }
+    catch(e){ console.warn('[archive] backend unavailable, using static files:',e&&e.message); }
+  }
+  if(!man){
+    /* this game's own static index or none — falling back to puzzles.json would
+       list the Daily Crossword's back catalogue under a Mini's heading */
+    if(!G.manifest){
+      listEl.innerHTML='<div class="empty">Puzzles for this game are served from the backend, which is not reachable right now.</div>';
+      return;
+    }
+    try{ man=await (await fetch(G.manifest,{cache:'no-store'})).json(); }
+    catch(e){ listEl.innerHTML='<div class="empty">Could not load the puzzle index. Serve this over http(s), not file://.</div>'; return; }
+  }
 
   /* Works with the current schema (puzzles map) and with the schema-2 index
      described in ARCHIVE-PLAN.md, so this page does not block that migration. */

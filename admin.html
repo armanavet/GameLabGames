@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="robots" content="noindex"/>
+<title>Puzzle admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<script src="games.js"></script>
+<style>
+  /* Upload and schedule puzzles. Static, so it can sit on GitHub Pages next to
+     the game and talk to the worker cross-origin. */
+  body{background:#fafafa}
+  #app{max-width:900px;height:auto;min-height:100%;background:transparent;overflow:visible;padding:0 20px 60px}
+  h1{font-size:26px;font-weight:900;margin:34px 0 4px}
+  .sub{color:#6b6b6b;font-size:14px;margin:0 0 22px}
+  .panel{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:18px;margin-bottom:18px}
+  .panel h2{margin:0 0 12px;font-size:15px;font-weight:700}
+  label.f{display:block;font-size:12px;font-weight:700;color:#6b6b6b;margin:0 0 4px;text-transform:uppercase;letter-spacing:.03em}
+  input[type=text],input[type=password],input[type=datetime-local],select{
+    width:100%;border:1px solid #d3d8e0;border-radius:8px;padding:9px 11px;font-size:14px;
+    font-family:var(--font);background:#fff}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row > div{flex:1;min-width:190px}
+  .drop{border:2px dashed #cfcfcf;border-radius:12px;padding:30px;text-align:center;color:#6b6b6b;
+        font-size:14px;cursor:pointer;background:#fcfcfc}
+  .drop.over{border-color:var(--ok);background:var(--ok-bg);color:var(--ok-ink)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#8a8a8a;
+     padding:0 8px 8px;border-bottom:1px solid #eee}
+  td{padding:10px 8px;border-bottom:1px solid #f2f2f2;vertical-align:middle}
+  tr.sched td{background:#fffaf2}
+  .pill2{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
+  .pill2.live{background:var(--ok-bg);color:var(--ok-ink)}
+  .pill2.wait{background:var(--band);color:var(--ink)}
+  .pill2.draft{background:#eee;color:#777}
+  td input[type=datetime-local]{padding:5px 7px;font-size:12.5px;width:200px}
+  .mini-btn{border:1px solid var(--panel-line);background:#fff;border-radius:6px;padding:5px 10px;
+            font-size:12px;font-weight:700;font-family:var(--font);cursor:pointer;color:var(--ink)}
+  .mini-btn.danger{border-color:#e6b6b2;color:#b3372e}
+  .log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#12161c;color:#d7dde5;
+       border-radius:8px;padding:12px;max-height:190px;overflow:auto;white-space:pre-wrap;margin-top:12px}
+  .log .bad{color:#ff9b93}
+  .log .good{color:#8fe3b0}
+  .note{background:var(--note-bg);border-radius:10px;padding:11px 14px;font-size:13px;margin-top:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>Puzzle admin</h1>
+  <p class="sub">Upload puzzle JSON, set when it goes live. Scheduled puzzles are withheld by the API until their time.</p>
+
+  <div class="panel">
+    <h2>Connection</h2>
+    <div class="row">
+      <div>
+        <label class="f" for="api">API base</label>
+        <input type="text" id="api" placeholder="https://your-worker.workers.dev" autocomplete="off"/>
+      </div>
+      <div>
+        <label class="f" for="token">Admin token</label>
+        <input type="password" id="token" placeholder="the ADMIN_TOKEN secret" autocomplete="off"/>
+      </div>
+      <div style="flex:0 0 auto;display:flex;align-items:flex-end;gap:8px">
+        <button class="btn pri wide" type="button" id="save">Save &amp; test</button>
+      </div>
+    </div>
+    <div class="note">Stored in this browser only (<code>localStorage</code>). The token grants write access —
+      treat it as a password and don't reuse a real credential for the demo.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Upload</h2>
+    <div class="row" style="margin-bottom:12px">
+      <div>
+        <label class="f" for="game">Game</label>
+        <select id="game"></select>
+      </div>
+      <div>
+        <label class="f" for="when">Publish at</label>
+        <input type="datetime-local" id="when"/>
+      </div>
+      <div style="flex:0 0 auto;display:flex;align-items:flex-end">
+        <button class="mini-btn" type="button" id="nowBtn">Now</button>
+      </div>
+    </div>
+    <div class="drop" id="drop">Drop puzzle <b>.json</b> files here, or click to choose.
+      <input type="file" id="file" accept=".json,application/json" multiple hidden/></div>
+    <div class="note">Each file is validated before it is stored — grid size, numbering and every answer
+      against the grid. A bad puzzle is rejected with the reason rather than published.</div>
+    <div class="log" id="log" hidden></div>
+  </div>
+
+  <div class="panel">
+    <h2>Archive <button class="mini-btn" type="button" id="refresh" style="float:right">Refresh</button></h2>
+    <table>
+      <thead><tr><th>Puzzle</th><th>Publishes</th><th>State</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4" style="color:#8a8a8a;padding:20px 8px">Not connected.</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const LS = { api:'lat:games:apiBase', tok:'lat:games:adminToken' };
+const state = { api:'', token:'', game:'crossword' };
+
+/* game picker comes from the shared roster */
+(function fillGames(){
+  const sel = $('#game');
+  Object.entries(window.GAMES).forEach(([id,g]) => {
+    if (g.hidden) return;
+    const o = document.createElement('option');
+    o.value = id; o.textContent = g.label; sel.appendChild(o);
+  });
+  sel.value = 'crossword';
+  sel.addEventListener('change', () => { state.game = sel.value; list(); });
+})();
+
+function log(msg, cls){
+  const el = $('#log'); el.hidden = false;
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  el.appendChild(line); el.scrollTop = el.scrollHeight;
+}
+
+/* A datetime-local input carries no timezone: whatever it holds is read back
+   as local time. toISOString() is UTC, so writing one straight into the other
+   shifts the value by the offset — and since the archive row re-reads the
+   field as local on change, an untranslated value would shift again on every
+   edit. The offset is taken from the instant itself so DST is handled. */
+function toLocalInput(t){
+  const d = new Date(t);
+  return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+}
+
+function load(){
+  state.api = (localStorage.getItem(LS.api) || (window.GAMES.crossword && window.GAMES.crossword.api) || '').replace(/\/+$/,'');
+  state.token = localStorage.getItem(LS.tok) || '';
+  $('#api').value = state.api; $('#token').value = state.token;
+  $('#when').value = toLocalInput(Date.now());
+}
+$('#nowBtn').onclick = () => { $('#when').value = toLocalInput(Date.now()); };
+
+/* Every per-entry admin route resolves the id against ONE game's index, so
+   the game has to be on the URL. Building it in one place stops PATCH and
+   DELETE drifting apart from each other. */
+const entryPath = id => '/api/admin/' + encodeURIComponent(id) + '?game=' + encodeURIComponent(state.game);
+
+async function api(path, opts){
+  if (!state.api) throw new Error('set the API base first');
+  const r = await fetch(state.api + path, Object.assign({
+    headers: Object.assign({ 'content-type':'application/json' },
+      state.token ? { 'x-admin-token': state.token } : {})
+  }, opts || {}));
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(body.error || r.status), { body });
+  return body;
+}
+
+$('#save').onclick = async () => {
+  state.api = $('#api').value.trim().replace(/\/+$/,'');
+  state.token = $('#token').value.trim();
+  localStorage.setItem(LS.api, state.api);
+  localStorage.setItem(LS.tok, state.token);
+  try {
+    const h = await api('/api/health?game=' + encodeURIComponent(state.game));
+    log(`connected — ${h.live} live, ${h.scheduled} scheduled`, 'good');
+    list();
+  } catch (e) { log('connection failed: ' + e.message, 'bad'); }
+};
+
+/* ---------- upload ---------- */
+const drop = $('#drop'), file = $('#file');
+drop.onclick = () => file.click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); send([...e.dataTransfer.files]); };
+file.onchange = () => { send([...file.files]); file.value = ''; };
+
+async function send(files){
+  const whenLocal = $('#when').value;
+  const publishAt = whenLocal ? new Date(whenLocal).toISOString() : new Date().toISOString();
+  for (const f of files) {
+    if (!/\.json$/i.test(f.name)) { log(`skipped ${f.name} — not .json`, 'bad'); continue; }
+    let puzzle;
+    try { puzzle = JSON.parse(await f.text()); }
+    catch (e) { log(`${f.name}: not valid JSON`, 'bad'); continue; }
+    const id = f.name.replace(/\.json$/i,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    try {
+      const res = await api('/api/admin/upload', {
+        method:'POST',
+        body: JSON.stringify({ game: state.game, id, publishAt, puzzle })
+      });
+      log(`${res.replaced ? 'replaced' : 'uploaded'} ${res.entry.id} — ${res.entry.live ? 'live now' : 'scheduled for ' + publishAt}`, 'good');
+    } catch (e) {
+      log(`${f.name}: ${e.message}`, 'bad');
+      (e.body && e.body.problems || []).slice(0,5).forEach(p => log('   ' + p, 'bad'));
+    }
+  }
+  list();
+}
+
+/* ---------- archive table ---------- */
+$('#refresh').onclick = () => list();
+
+async function list(){
+  const tb = $('#rows');
+  try {
+    const data = await api('/api/admin/list?game=' + encodeURIComponent(state.game));
+    tb.innerHTML = '';
+    if (!data.index.length) {
+      tb.innerHTML = '<tr><td colspan="4" style="color:#8a8a8a;padding:20px 8px">Nothing uploaded yet.</td></tr>';
+      return;
+    }
+    data.index.slice().reverse().forEach(e => {
+      const tr = document.createElement('tr');
+      if (!e.live) tr.className = 'sched';
+
+      const td1 = document.createElement('td');
+      td1.innerHTML = '<b></b><div style="color:#8a8a8a;font-size:12px"></div>';
+      td1.querySelector('b').textContent = e.title || e.id;
+      td1.querySelector('div').textContent = `${e.id} · ${e.size || ''}`;
+
+      const td2 = document.createElement('td');
+      const when = document.createElement('input');
+      when.type = 'datetime-local';
+      when.value = e.publishAt ? toLocalInput(e.publishAt) : '';
+      when.onchange = async () => {
+        try {
+          await api(entryPath(e.id), {
+            method:'PATCH', body: JSON.stringify({ publishAt: new Date(when.value).toISOString() })
+          });
+          log(`${e.id} rescheduled`, 'good'); list();
+        } catch (err) { log(`${e.id}: ${err.message}`, 'bad'); }
+      };
+      td2.appendChild(when);
+
+      const td3 = document.createElement('td');
+      const pill = document.createElement('span');
+      pill.className = 'pill2 ' + (e.status === 'draft' ? 'draft' : e.live ? 'live' : 'wait');
+      pill.textContent = e.status === 'draft' ? 'Draft' : e.live ? 'Live' : 'Scheduled';
+      td3.appendChild(pill);
+
+      const td4 = document.createElement('td');
+      td4.style.textAlign = 'right';
+      const del = document.createElement('button');
+      del.className = 'mini-btn danger'; del.type = 'button'; del.textContent = 'Delete';
+      del.onclick = async () => {
+        if (!confirm(`Delete ${e.id}?`)) return;
+        try { await api(entryPath(e.id), { method:'DELETE' });
+              log(`deleted ${e.id}`, 'good'); list(); }
+        catch (err) { log(`${e.id}: ${err.message}`, 'bad'); }
+      };
+      td4.appendChild(del);
+
+      tr.append(td1, td2, td3, td4);
+      tb.appendChild(tr);
+    });
+  } catch (e) {
+    tb.innerHTML = '<tr><td colspan="4" style="color:#b3372e;padding:20px 8px"></td></tr>';
+    tb.querySelector('td').textContent = e.message;
+  }
+}
+
+load();
+if (state.api && state.token) list();
+</script>
+</body>
+</html>

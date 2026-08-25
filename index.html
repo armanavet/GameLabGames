@@ -45,6 +45,16 @@
   footer{margin-top:40px;text-align:center;font-size:13px;color:#9a9a9a}
   footer a{color:#6b6b6b}
 
+  /* Internal tools are not games, so they get a quiet pill in the footer
+     rather than a card — the grid above stays the thing a reader recognises
+     as the product. Delete .tools to remove them from a public build. */
+  .tools{display:flex;justify-content:center;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .tool{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:19px;
+        border:1px solid #dcdcdc;background:#fff;color:#4a4a4a;font-size:13px;font-weight:600;
+        text-decoration:none;transition:border-color .15s,color .15s,background .15s}
+  .tool:hover{border-color:var(--ink);color:var(--ink);background:var(--band)}
+  .tool svg{width:15px;height:15px;flex:none}
+
   @media(max-width:640px){
     #app{padding:0 14px 40px}
     .games{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
@@ -84,7 +94,13 @@
   <main class="games" id="games"></main>
 
   <footer>
-    Building the in-house player &middot; <a href="play.html?game=editor">Puzzle editor</a>
+    Building the in-house player
+    <div class="tools">
+      <a class="tool" href="admin.html">
+        <svg aria-hidden="true"><use href="icons.svg#i-settings"/></svg>Admin panel</a>
+      <a class="tool" href="play.html?game=editor">
+        <svg aria-hidden="true"><use href="icons.svg#i-pencil"/></svg>Puzzle editor</a>
+    </div>
   </footer>
 </div>
 

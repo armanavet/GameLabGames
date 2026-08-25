@@ -7,7 +7,11 @@
 
      player    the game itself
      archive   its puzzle list (omit if the game has no archive)
-     manifest  the index that archive reads
+     manifest  the index that archive reads when there is no api
+     api       optional backend base URL. When set, the index and payloads come
+               from it instead of the static files, which is what lets a puzzle
+               stay hidden until its publish time. Falls back to `manifest` if
+               the backend is unreachable, so the demo never dies with it.
      live      false renders a "Coming soon" card and refuses to route
      hidden    keep it off the hub (tools rather than games)
    ========================================================================= */
@@ -58,23 +62,36 @@
     '<path d="M4 18h44M4 32h44M18 4v44M32 4v44"/></g>' +
     '<path d="M9 43L43 9" stroke="currentColor" stroke-width="4" stroke-linecap="round" opacity=".85"/></svg>';
 
+  /* One backend serves every game; keep the URL in one place so enabling a
+     game cannot half-point it somewhere else. See backend/README.md. */
+  const API = 'https://lat-puzzles.armanavetisyan1997.workers.dev';
+
   window.GAMES = {
     crossword: {
       label: 'Daily Crossword', short: 'Crossword',
       blurb: 'A fresh crossword every day.',
       archiveBlurb: 'An engaging new puzzle to conquer each day.',
       player: 'crossword.html', archive: 'archive.html', manifest: 'puzzles.json',
+      api: API,
       art: grid(B([1, 0, 1, 0, 1, 0, 1, 0, 1])), live: true
     },
+    /* Midi and Mini are the crossword engine at other sizes — same player,
+       same payload schema, their own index. They have no `manifest` because
+       there is no static back catalogue for them yet: with the backend down
+       they say so rather than showing the Daily's puzzles. */
     midi: {
       label: 'Midi Crossword', short: 'Midi',
       blurb: 'A middleweight grid for a shorter sitting.',
-      art: grid(B([0, 1, 0, 1, 1, 1, 0, 1, 0]))
+      archiveBlurb: 'A middleweight grid for a shorter sitting.',
+      player: 'crossword.html', archive: 'archive.html', api: API,
+      art: grid(B([0, 1, 0, 1, 1, 1, 0, 1, 0])), live: true
     },
     mini: {
       label: 'Mini Crossword', short: 'Mini',
       blurb: 'A small grid for a quick break.',
-      art: grid(B([1, 0, 0, 0, 0, 0, 0, 0, 1]))
+      archiveBlurb: 'A small grid for a quick break.',
+      player: 'crossword.html', archive: 'archive.html', api: API,
+      art: grid(B([1, 0, 0, 0, 0, 0, 0, 0, 1])), live: true
     },
     wordflower: {
       label: 'Wordflower', short: 'Wordflower',
@@ -109,6 +126,16 @@
 
   /* Resolve a ?game= value to a real entry. Falls back rather than throwing,
      and returns the id too so callers never pass an unknown one downstream. */
+  /* A browser-local override so the admin page can point the whole build at a
+     backend without editing this file. */
+  window.apiBase = function (g) {
+    try {
+      const o = localStorage.getItem('lat:games:apiBase');
+      if (o) return o.replace(/\/+$/, '');
+    } catch (_) {}
+    return (g && g.api ? g.api : '').replace(/\/+$/, '');
+  };
+
   window.resolveGame = function (id) {
     const g = window.GAMES[id];
     if (g && g.live) return { id: id, game: g };

@@ -30,26 +30,66 @@ window.XW = (function () {
   const pad2 = n => String(n).padStart(2, '0');
   const fmtTime = s => pad2(Math.floor(s / 60)) + ':' + pad2(s % 60);
 
-  /* ---------- puzzle loading ---------- */
+  /* ---------- puzzle loading ----------
+     Falling back to the default puzzle is right when no id was asked for. When
+     one WAS asked for and is not in the index, handing over a different puzzle
+     without a word is how a misconfigured player looks like a working one. */
+  function substituted(want, got) {
+    if (!want || want === got) return null;
+    console.warn('[XW] "' + want + '" is not in the index — loaded "' + got + '" instead');
+    return want;
+  }
+
   async function loadPuzzle(opts) {
     opts = opts || {};
     const params = new URLSearchParams(location.search);
     const pid = (params.get('p') || params.get('puzzle') || '').toLowerCase();
+
+    /* Backend first when one is configured. It only ever returns published
+       puzzles, so a scheduled one 404s here exactly as it does for a reader
+       guessing the URL. Any failure falls through to the static files. */
+    const gEntry = (window.GAMES && window.GAMES[gameId]) || null;
+    const base = window.apiBase ? window.apiBase(gEntry) : '';
+    if (base) {
+      try {
+        const man = await (await fetch(base + '/api/index?game=' + encodeURIComponent(gameId),
+                                      { cache: 'no-store' })).json();
+        if (Array.isArray(man.index) && man.index.length) {
+          const rec = man.index.find(r => r.id === pid) ||
+                      man.index.find(r => r.id === man.default) ||
+                      man.index[man.index.length - 1];
+          const data = await (await fetch(rec.payloadUrl)).json();
+          const missed = substituted(pid, rec.id);
+          ['caption', 'date', 'author', 'editor'].forEach(k => { if (rec[k]) data[k] = rec[k]; });
+          if (!data.title && rec.title) data.title = rec.title;
+          return { id: rec.id, data, meta: rec, source: 'api', substituted: missed };
+        }
+      } catch (e) {
+        console.warn('[XW] backend unavailable, using static files:', e && e.message);
+      }
+    }
     if (location.hash.indexOf('#data=') === 0) {
       try { return { id: 'preview', data: JSON.parse(b64dec(location.hash.slice(6))) }; } catch (e) {}
     }
-    const man = await (await fetch(opts.manifest || 'puzzles.json', { cache: 'no-store' })).json();
+    /* Whose static index? Defaulting to puzzles.json would hand a Mini the
+       Daily Crossword's back catalogue whenever the backend is unreachable —
+       wrong content is worse than no content, so a game without a static
+       index fails loudly instead. */
+    const manifestUrl = opts.manifest || (gEntry && gEntry.manifest) || '';
+    if (!manifestUrl) throw new Error('no puzzles for "' + gameId + '": backend unreachable and it has no static index');
+    const man = await (await fetch(manifestUrl, { cache: 'no-store' })).json();
     // schema 2 (ARCHIVE-PLAN.md) — readable index pointing at one file per puzzle
     if (Array.isArray(man.index) && man.index.length) {
       const live = man.index.filter(r => r.status !== 'draft');
       const rec = live.find(r => r.id === pid) || live.find(r => r.id === man.default) || live[0];
+      const missed = substituted(pid, rec.id);
       const raw = await (await fetch(rec.payloadUrl || rec.file, { cache: 'no-store' })).json();
       // payload is the puzzle object as authored; {data:"<base64>"} still accepted
       const data = (raw && typeof raw.data === 'string') ? JSON.parse(b64dec(raw.data)) : raw;
       // the index is the hand-editable source of truth for metadata
       ['caption', 'date', 'author', 'editor'].forEach(k => { if (rec[k]) data[k] = rec[k]; });
       if (!data.title && rec.title) data.title = rec.title;
-      return { id: rec.id, data, meta: rec };
+      return { id: rec.id, data, meta: rec, substituted: missed };
     }
     // schema 1 — inline base64 map
     const key = (pid && man.puzzles[pid]) ? pid : (man.default || Object.keys(man.puzzles)[0]);
@@ -62,10 +102,16 @@ window.XW = (function () {
      upgrading does not orphan anyone's in-progress solve. */
   const STORE_V = 'v1';
   const storage = {
-    key: id => 'lat:games:' + STORE_V + ':' + id,
+    /* The game belongs in the key: ids are unique within a game, not across
+       them, so once ids are dates a Mini and a Daily on the same day would
+       otherwise share one saved solve. Keys written before this are read as a
+       fallback so nobody's in-progress puzzle is orphaned by the change. */
+    key: id => 'lat:games:' + STORE_V + ':' + gameId + ':' + id,
+    legacyKey: id => 'lat:games:' + STORE_V + ':' + id,
     load(id) {
       try {
-        const raw = localStorage.getItem(storage.key(id));
+        const raw = localStorage.getItem(storage.key(id)) ||
+                    localStorage.getItem(storage.legacyKey(id));
         if (raw) { const o = JSON.parse(raw); if (o && o.v) return o; }
         const legacy = localStorage.getItem('xw:' + id);
         if (legacy) return { v: 0, letters: JSON.parse(legacy), elapsed: 0, revealed: [], completed: false };
@@ -79,7 +125,9 @@ window.XW = (function () {
       } catch (e) {}
     },
     clear(id) {
-      try { localStorage.removeItem(storage.key(id)); localStorage.removeItem('xw:' + id); } catch (e) {}
+      try { localStorage.removeItem(storage.key(id));
+            localStorage.removeItem(storage.legacyKey(id));
+            localStorage.removeItem('xw:' + id); } catch (e) {}
     }
   };
 

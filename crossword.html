@@ -165,8 +165,8 @@
       <div class="caption" id="caption"></div>
     </div>
     <div class="clues">
-      <div class="clist"><h3 id="hDown">Down</h3><ol id="downList" aria-labelledby="hDown"></ol></div>
       <div class="clist"><h3 id="hAcross">Across</h3><ol id="acrossList" aria-labelledby="hAcross"></ol></div>
+      <div class="clist"><h3 id="hDown">Down</h3><ol id="downList" aria-labelledby="hDown"></ol></div>
     </div>
   </div>
 
@@ -319,22 +319,44 @@
   <div id="srLive" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 </div>
 
+<!-- games.js first: core.js reads window.GAMES/apiBase to find the backend,
+     and without it the player silently falls back to the static index. -->
+<script src="games.js"></script>
 <script src="core.js"></script>
 <script>
 (async function(){
   'use strict';
   const $=XW.$;
 
+  /* Before loadPuzzle, not after: it decides which game's index to read. One
+     player serves Daily, Midi and Mini — same engine, same schema, different
+     roster entry — so the id comes from the URL, restricted to games that
+     actually name this file as their player. */
+  (function(){
+    const want=new URLSearchParams(location.search).get('game')||'crossword';
+    const g=window.GAMES&&window.GAMES[want];
+    XW.gameId=(g&&g.live&&g.player==='crossword.html')?want:'crossword';
+  })();
+
   let loaded;
   try{ loaded=await XW.loadPuzzle(); }
   catch(e){
-    document.getElementById('app').innerHTML=
-      '<div style="padding:44px;font-size:16px;line-height:1.5;color:#555">Could not load <b>puzzles.json</b>.<br>'+
-      'Serve this page over http(s) with <b>puzzles.json</b> alongside it (a local server, not file://).</div>';
+    /* say what actually failed: "no puzzles for midi" and "you opened this over
+       file://" are different problems and used to share one message */
+    const box=document.createElement('div');
+    box.setAttribute('style','padding:44px;font-size:16px;line-height:1.5;color:#555');
+    const b=document.createElement('b'); b.textContent='Could not load this puzzle.';
+    const why=document.createElement('div'); why.setAttribute('style','margin-top:8px');
+    why.textContent=(e&&e.message)||'Unknown error.';
+    const hint=document.createElement('div'); hint.setAttribute('style','margin-top:8px;color:#8a8a8a;font-size:14px');
+    hint.textContent='Serve this over http(s), not file://, and check the backend in games.js.';
+    box.appendChild(b); box.appendChild(why); box.appendChild(hint);
+    const app=document.getElementById('app'); app.innerHTML=''; app.appendChild(box);
     return;
   }
   const P=loaded.data, puzId=loaded.id, N=P.W, H=P.H;
-  XW.gameId='crossword'; XW.puzzleId=puzId;
+  XW.puzzleId=puzId;
+  if(loaded.substituted) setTimeout(()=>XW.toast('“'+loaded.substituted+'” is not available — showing the latest puzzle'),400);
   document.title=P.title||'Crossword';
 
   /* shared chrome, mounted rather than copy-pasted per game */
