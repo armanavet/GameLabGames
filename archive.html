@@ -9,6 +9,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="core.css">
 <script src="games.js"></script>
+<!-- sudoku's grid shape is per difficulty (Mini is 6x6), and the engine is
+     where that is defined; harmless for games that never consult it -->
+<script src="sudoku-engine.js"></script>
 <style>
   /* Archive — Figma 273:48472 (standalone screen) */
   *{box-sizing:border-box}
@@ -94,13 +97,21 @@
     /* a fixed level wins over ?d=; only a by-difficulty game reads the URL */
     const lvl=G.generated.level||(G.generated.byDifficulty?(LEVEL||'medium'):'');
     const idp=G.generated.idPrefix||GID;
+    /* The shape belongs to the difficulty, not the game: Mini is a 6x6 while
+       every other level is 9x9. Ask the engine rather than repeating the
+       numbers in the roster, where the two copies would drift apart. */
+    let gsize=G.generated.size||'', gcells=G.generated.cells||0;
+    const shape=window.SUDOKU&&window.SUDOKU.DIFFICULTY&&window.SUDOKU.DIFFICULTY[lvl];
+    if(shape&&shape.bw&&shape.bh){
+      const n=shape.bw*shape.bh; gsize=n+'x'+n; gcells=n*n;
+    }
     const days=G.generated.days||30, out=[];
     const d=new Date();
     for(let k=0;k<days;k++){
       const t=new Date(d.getFullYear(),d.getMonth(),d.getDate()-k);
       const iso=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
       out.push({id:idp+(lvl?'-'+lvl:'')+'-'+iso, title:G.label, date:iso,
-                size:G.generated.size||'', cells:G.generated.cells||0, status:'published'});
+                size:gsize, cells:gcells, status:'published'});
     }
     man={schema:2, source:'generated', index:out};
   }
