@@ -115,6 +115,13 @@ Object.entries(window.GAMES).forEach(([gid, g]) => {
 
   const thumb = document.createElement('div');
   thumb.className = 'thumb';
+  /* a game may bring its own card colour; the roster stays the source of
+     truth, so this file never learns any individual game's name */
+  /* `tintInk` only matters for artwork drawn in currentColor (the sudoku
+     marks). The crossword marks carry their own black and white so they stay
+     legible on any card colour. */
+  if (g.tint && g.live) { thumb.style.background = g.tint;
+                          if (g.tintInk) thumb.style.color = g.tintInk; }
   thumb.innerHTML = g.art + (g.tag ? '<span class="tag">' + g.tag + '</span>' : '');
 
   const body = document.createElement('div');

@@ -426,6 +426,16 @@ window.XW = (function () {
     (spec.right || []).forEach(i => { const n = buildItem(i, spec); if (n) right.appendChild(n); });
     bar.appendChild(left); bar.appendChild(right);
     host.appendChild(bar);
+    /* The band behind the toolbar is painted by the page, not by .topbar — see
+       the note in core.css. Publish the measured height so the two agree, and
+       keep them agreeing when the bar rewraps. */
+    const syncBarHeight = () => {
+      const h = Math.round(bar.getBoundingClientRect().height);
+      if (h) document.documentElement.style.setProperty('--bar-h', h + 'px');
+    };
+    syncBarHeight();
+    if (window.ResizeObserver) new ResizeObserver(syncBarHeight).observe(bar);
+    else window.addEventListener('resize', syncBarHeight);
     return bar;
   }
 
@@ -499,9 +509,12 @@ window.XW = (function () {
     if (framed) { emit('navigate', intent); return; }
     const q = new URLSearchParams({ game: intent.gameId });
     if (intent.puzzleId) q.set('p', intent.puzzleId);
+    /* a game whose archives are split by difficulty needs that on the URL too;
+       games without difficulties never set it and are unaffected */
+    if (intent.difficulty) q.set('d', intent.difficulty);
     location.href = 'play.html?' + q.toString();
   }
-  function goArchive() { navigate({ view: 'archive' }); }
+  function goArchive(opts) { navigate(Object.assign({ view: 'archive' }, opts || {})); }
   function goPuzzle(id) { navigate({ view: 'puzzle', puzzleId: id }); }
 
   const XW = {

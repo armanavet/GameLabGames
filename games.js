@@ -19,17 +19,59 @@
   'use strict';
 
   /* Artwork carries a viewBox only — the hub and the archive size it
-     differently, so width/height belong to the CSS, not the markup. */
+     differently, so width/height belong to the CSS, not the markup.
+
+     The crossword mark (CrosswordLogoHome): a 3x3 of rounded squares, filled
+     ones black, empty ones white with a black rule. The ink is explicit rather
+     than currentColor — on a tinted card, currentColor made filled and empty
+     squares both white and the pattern disappeared entirely. */
+  const INK = '#000';          // CrosswordLogoHome is pure black
+  const ROW_INK = '#373737';   // the row marks use the design's --ink
   const grid = cells => {
     let out = '';
     cells.forEach((on, i) => {
-      const x = 3 + (i % 3) * 15, y = 3 + Math.floor(i / 3) * 15;
-      out += '<rect x="' + x + '" y="' + y + '" width="12" height="12" rx="2" ' +
-        (on ? 'fill="currentColor"' : 'fill="#fff" stroke="currentColor" stroke-width="1.2"') + '/>';
+      const x = 4 + (i % 3) * 68, y = 4 + Math.floor(i / 3) * 68;
+      out += '<rect x="' + x + '" y="' + y + '" width="56" height="56" rx="10" ' +
+        (on ? 'fill="' + INK + '"'
+            : 'fill="#fff" stroke="' + INK + '" stroke-width="3.4"') + '/>';
     });
-    return '<svg viewBox="0 0 51 51" aria-hidden="true">' + out + '</svg>';
+    return '<svg viewBox="0 0 200 200" aria-hidden="true">' + out + '</svg>';
   };
   const B = a => a.map(Boolean);
+
+  /* Archive row marks, traced from dailyCrosswordArchive.png and
+     SudokuArchive.png. Both are a 3x3 of rounded cells filling the 35px box
+     archive.html already frames — the cells run edge to edge, which is what
+     made the first attempt look small and floating.
+
+     Crossword: corners and centre inked, the four edge cells left white.
+     Sudoku: the same five cells carry digits on the board's own given-grey,
+     so the mark reads as a miniature of the puzzle it opens. */
+  const ROW_CELL = 10.4, ROW_AT = [1.2, 12.2, 23.2], ROW_MID = [6.4, 17.4, 28.4];
+  const QUINCUNX = [[0, 0], [2, 0], [1, 1], [0, 2], [2, 2]];
+
+  const rowCell = (c, r, fill) =>
+    '<rect x="' + ROW_AT[c] + '" y="' + ROW_AT[r] + '" width="' + ROW_CELL +
+    '" height="' + ROW_CELL + '" rx="2.2" fill="' + fill + '"/>';
+
+  const xwordRow =
+    '<svg viewBox="0 0 35 35" aria-hidden="true">' +
+    QUINCUNX.map(([c, r]) => rowCell(c, r, ROW_INK)).join('') + '</svg>';
+
+  const sudokuRow = (() => {
+    const digits = { '0,0': '1', '2,0': '5', '1,1': '3', '0,2': '2', '2,2': '7' };
+    let out = '';
+    /* #cacaca, sampled from the asset. The board's given-grey (#efefef) is
+       far too light at 35px — the cells vanished against the white row. */
+    QUINCUNX.forEach(([c, r]) => { out += rowCell(c, r, '#cacaca'); });
+    out += '<g fill="#000" font-family="Montserrat,Arial,sans-serif" ' +
+           'font-size="7.2" font-weight="700" text-anchor="middle">';
+    QUINCUNX.forEach(([c, r]) => {
+      out += '<text x="' + ROW_MID[c] + '" y="' + (ROW_MID[r] + 2.6) + '">' +
+             digits[c + ',' + r] + '</text>';
+    });
+    return '<svg viewBox="0 0 35 35" aria-hidden="true">' + out + '</g></svg>';
+  })();
 
   const nums = n => {
     let out = '<g fill="none" stroke="currentColor" stroke-width="1.8">' +
@@ -66,6 +108,21 @@
      game cannot half-point it somewhere else. See backend/README.md. */
   const API = 'https://lat-puzzles.armanavetisyan1997.workers.dev';
 
+  /* Card colours for the hub. Kept together so the set can be read at a
+     glance and two games cannot quietly end up the same. Daily Crossword has
+     no tint — it keeps the shared --band peach the design uses everywhere.
+     Every tint takes white artwork, so they are dark enough for it. */
+  const TINT = {
+    /* Two families, each a shade apart rather than a different hue: the
+       crosswords stay on the design's peach, the sudokus on its azure, so the
+       hub reads as two groups instead of five unrelated cards. */
+    crossword:  '#ffd4a3',   // --band, the design's own
+    midi:       '#ffc38a',
+    mini:       '#ffe7cd',
+    sudoku:     '#00a8f0',   // azure, from the Sudoku frames
+    'sudoku-x': '#0b76b8',   // the same azure, deeper
+  };
+
   window.GAMES = {
     crossword: {
       label: 'Daily Crossword', short: 'Crossword',
@@ -73,7 +130,7 @@
       archiveBlurb: 'An engaging new puzzle to conquer each day.',
       player: 'crossword.html', archive: 'archive.html', manifest: 'puzzles.json',
       api: API,
-      art: grid(B([1, 0, 1, 0, 1, 0, 1, 0, 1])), live: true
+      art: grid(B([1, 0, 1, 0, 1, 0, 1, 0, 1])), archiveArt: xwordRow, live: true
     },
     /* Midi and Mini are the crossword engine at other sizes — same player,
        same payload schema, their own index. They have no `manifest` because
@@ -84,24 +141,34 @@
       blurb: 'A middleweight grid for a shorter sitting.',
       archiveBlurb: 'A middleweight grid for a shorter sitting.',
       player: 'crossword.html', archive: 'archive.html', api: API,
-      art: grid(B([0, 1, 0, 1, 1, 1, 0, 1, 0])), live: true
+      tint: TINT.midi,
+      art: grid(B([0, 1, 0, 1, 1, 1, 0, 1, 0])), archiveArt: xwordRow, live: true
     },
     mini: {
       label: 'Mini Crossword', short: 'Mini',
       blurb: 'A small grid for a quick break.',
       archiveBlurb: 'A small grid for a quick break.',
       player: 'crossword.html', archive: 'archive.html', api: API,
-      art: grid(B([1, 0, 0, 0, 0, 0, 0, 0, 1])), live: true
+      tint: TINT.mini,
+      art: grid(B([1, 0, 0, 0, 0, 0, 0, 0, 1])), archiveArt: xwordRow, live: true
     },
     wordflower: {
       label: 'Wordflower', short: 'Wordflower',
       blurb: 'Build as many words as you can from seven letters.',
       art: flower
     },
+    /* Sudoku is GENERATED, not authored: the date seeds the puzzle, so there
+       is no manifest, no api and nothing to upload. `generated.days` is how
+       far back the archive offers — a future date is never listed and the
+       player refuses to build one, which is decision D5 for free. */
     sudoku: {
       label: 'Sudoku', short: 'Sudoku',
       blurb: 'The classic number-placement puzzle.',
-      art: nums(3)
+      archiveBlurb: 'A fresh number-placement puzzle every day.',
+      player: 'sudoku.html', archive: 'archive.html', start: 'sudoku-start.html',
+      generated: { days: 30, size: '9x9', cells: 81, byDifficulty: true },
+      tint: TINT.sudoku, tintInk: '#fff',
+      art: nums(3), archiveArt: sudokuRow, live: true
     },
     jigsaw: {
       label: 'Jigsaw', short: 'Jigsaw',
@@ -113,10 +180,17 @@
       blurb: 'Find themed words hidden in the letters.',
       art: search
     },
+    /* Impossible Sudoku is the same player at a fixed level: no difficulty
+       screen, straight to its own archive. `generated.level` pins it, and
+       idPrefix keeps ids in the engine's sudoku-<level>-<date> shape. */
     'sudoku-x': {
       label: 'Impossible Sudoku', short: 'Impossible',
       blurb: 'Sudoku with the training wheels removed.',
-      art: nums(4)
+      archiveBlurb: 'Sudoku with the training wheels removed.',
+      player: 'sudoku.html', archive: 'archive.html',
+      generated: { days: 30, size: '9x9', cells: 81, idPrefix: 'sudoku', level: 'impossible' },
+      tint: TINT['sudoku-x'], tintInk: '#fff',
+      art: nums(4), archiveArt: sudokuRow, live: true
     },
     editor: {
       label: 'Puzzle editor', short: 'Editor',

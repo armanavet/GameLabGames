@@ -52,6 +52,7 @@
 const params = new URLSearchParams(location.search);
 let want = params.get('game');
 let p    = params.get('p');
+const d  = params.get('d');
 // back-compat with the earlier ?p=archive / ?p=editor links
 if (!want) { if (p === 'editor')  { want = 'editor';    p = null; }
              else if (p === 'archive') { want = 'crossword'; p = null; } }
@@ -61,10 +62,16 @@ const { id: gid, game: g } = resolveGame(want);
    is actually on, not the asset host. LAT's page must do the same. */
 const canon = '&canonical=' + encodeURIComponent(location.href);
 /* the game rides along to the player too: one crossword.html serves Daily,
-   Midi and Mini, and it can only pick the right index if it is told which. */
+   Midi and Mini, and it can only pick the right index if it is told which.
+
+   Routing order: a puzzle wins; then, for a game with difficulty levels, the
+   start screen until one is chosen; then the archive. `d` is what a chosen
+   level looks like on the URL. */
+const dq = d ? '&d=' + encodeURIComponent(d) : '';
 const src = p                  ? g.player + '?game=' + encodeURIComponent(gid) +
                                  '&p=' + encodeURIComponent(p) + canon
-          : g.archive          ? g.archive + '?game=' + encodeURIComponent(gid) + canon
+          : (g.start && !d)    ? g.start + '?game=' + encodeURIComponent(gid) + canon
+          : g.archive          ? g.archive + '?game=' + encodeURIComponent(gid) + dq + canon
                                : g.player + '?game=' + encodeURIComponent(gid) + canon;
 
 const frame = document.getElementById('game');
@@ -83,6 +90,7 @@ addEventListener('message', (e) => {
   const { id } = resolveGame(d.gameId);
   const q = new URLSearchParams({ game: id });
   if (d.puzzleId) q.set('p', d.puzzleId);
+  if (d.difficulty) q.set('d', d.difficulty);
   location.href = 'play.html?' + q.toString();
 });
 </script>

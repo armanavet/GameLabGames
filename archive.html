@@ -13,7 +13,10 @@
   /* Archive — Figma 273:48472 (standalone screen) */
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;height:100%;background:#fff;font-family:var(--font);color:var(--ink)}
-  #app{width:100%;max-width:880px;margin:0 auto;min-height:100%;background:#fff;
+  /* core.css clips #app so a game board cannot spill; an archive is a list
+     and has to be able to run past the fold, so it scrolls instead. */
+  html,body{overflow-y:auto}
+  #app{width:100%;max-width:880px;margin:0 auto;min-height:100%;background:#fff;overflow:visible;
        display:flex;flex-direction:column;gap:40px;padding:24px 20px 40px}
   .ahead{display:flex;flex-direction:column;gap:2px;width:100%}
   .ahead h1{margin:0;font-weight:900;font-size:18px;color:var(--ink);text-align:center;line-height:normal}
@@ -71,15 +74,37 @@
   const b64dec=XW.b64dec;
   const listEl=document.getElementById('aList');
   const {id:GID, game:G}=resolveGame(new URLSearchParams(location.search).get('game'));
-  document.getElementById('aTitle').textContent=G.label;
+  const LVL0=new URLSearchParams(location.search).get('d')||'';
+  const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):'';
+  /* a fixed-level game already says what it is in its own name */
+  const showLvl=(G.generated&&G.generated.byDifficulty)?LVL0:'';
+  document.getElementById('aTitle').textContent=G.label+(showLvl?' · '+cap(showLvl):'');
   document.getElementById('aSub').textContent=G.archiveBlurb||G.blurb||'';
-  document.title=G.label;
+  document.title=G.label+(showLvl?' · '+cap(showLvl):'');
   XW.gameId=GID;
 
-  /* Backend first when configured — it withholds scheduled puzzles, so the
-     archive cannot list tomorrow's. Falls back to the static index. */
+  /* A generated game (sudoku) has no index to fetch: the date IS the puzzle,
+     so the list is simply the last N days up to today. Today is the newest
+     entry that can exist, which is why tomorrow can never be listed. */
   let man=null;
-  const API=window.apiBase?window.apiBase(G):'';
+  const LEVEL=new URLSearchParams(location.search).get('d')||'';
+  if(G.generated){
+    /* Each difficulty is its own archive: the level is part of every id, so
+       progress on Easy and Expert for one date never share a saved solve. */
+    /* a fixed level wins over ?d=; only a by-difficulty game reads the URL */
+    const lvl=G.generated.level||(G.generated.byDifficulty?(LEVEL||'medium'):'');
+    const idp=G.generated.idPrefix||GID;
+    const days=G.generated.days||30, out=[];
+    const d=new Date();
+    for(let k=0;k<days;k++){
+      const t=new Date(d.getFullYear(),d.getMonth(),d.getDate()-k);
+      const iso=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+      out.push({id:idp+(lvl?'-'+lvl:'')+'-'+iso, title:G.label, date:iso,
+                size:G.generated.size||'', cells:G.generated.cells||0, status:'published'});
+    }
+    man={schema:2, source:'generated', index:out};
+  }
+  const API=(!man&&window.apiBase)?window.apiBase(G):'';
   if(API){
     try{ man=await (await fetch(API+'/api/index?game='+encodeURIComponent(GID),{cache:'no-store'})).json(); }
     catch(e){ console.warn('[archive] backend unavailable, using static files:',e&&e.message); }
@@ -115,6 +140,10 @@
     });
   }
   items.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  /* Every archive shows the most recent MAX_ENTRIES and no more. Older puzzles
+     are still reachable by id — this caps the page, not the back catalogue. */
+  const MAX_ENTRIES=14;
+  items=items.slice(0,MAX_ENTRIES);
 
   const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -135,10 +164,11 @@
   function state(it){
     const st=XW.storage.load(it.id);
     if(!st)return null;
-    const filled=Object.keys(st.letters||{}).length;
+    /* games that don't store a letters map say how far along they are */
+    const filled=(typeof st.filled==='number')?st.filled:Object.keys(st.letters||{}).length;
     if(st.completed)return {kind:'completed',label:'Completed',pct:1};
     if(!filled)return null;
-    const total=it.cells||0;
+    const total=(typeof st.total==='number'&&st.total)?st.total:(it.cells||0);
     return {kind:'started',label:'Started',pct:total?Math.min(1,filled/total):0.12};
   }
   const R=10, C=2*Math.PI*R;
@@ -163,7 +193,8 @@
   items.forEach(it=>{
     const wrap=document.createElement('div');wrap.className='aitem';
     const row=document.createElement('button');row.className='row';
-    const mini='<div class="mini">'+(G.art||'')+'</div>';
+    /* a game may supply a mark drawn for this 35px box rather than the hub's */
+    const mini='<div class="mini">'+(G.archiveArt||G.art||'')+'</div>';
     const st=state(it);
     row.innerHTML=mini+
       '<div class="det"><div class="t"></div><div class="b"></div></div>'+

@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<!-- zoom deliberately enabled: blocking it is a WCAG failure and iOS ignores it anyway -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Sudoku</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&family=Roboto:wght@400;700&family=Inter:wght@500;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<style>
+  /* sudoku-only styles — everything shared lives in core.css */
+  /* The board is the page here — there is no clue list to share width with —
+     so the shell is allowed wider than the shared 880 default. */
+  #app{max-width:1040px}
+  .main{display:grid;grid-template-columns:1fr 260px;gap:28px;padding:20px 28px 12px;
+        flex:1 1 auto;min-height:0}
+  .gridwrap{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+
+  /* ---------- board ----------
+     One square container; cells size themselves off it so the grid stays
+     square at any width without measuring anything in JS. */
+  .board{display:grid;grid-template-columns:repeat(var(--n,9),1fr);
+         grid-template-rows:repeat(var(--n,9),1fr);
+         width:min(100%,var(--board-max,470px));aspect-ratio:1;
+         border:1.5px solid var(--grid);background:var(--grid);gap:0}
+  .sc{position:relative;background:#fff;border:.5px solid #e2e2e2;
+      display:flex;align-items:center;justify-content:center;cursor:pointer;
+      font-weight:600;font-size:clamp(15px,3.4vw,26px);color:var(--ink3);
+      user-select:none;-webkit-tap-highlight-color:transparent}
+  /* the 3x3 boxes are drawn with heavier interior rules, not by shading */
+  .sc.br{border-right-width:1.5px;border-right-color:var(--grid)}
+  .sc.bb{border-bottom-width:1.5px;border-bottom-color:var(--grid)}
+
+  /* Figma: a given clue sits on grey, anything the reader typed sits on white.
+     That is the only thing distinguishing them — weight and colour match. */
+  .sc.given{background:#efefef}       /* cell-0-2 etc. */
+  .sc.peer{background:#f6f6f6}
+  .sc.same{background:#fdf0b4}                    /* every cell holding the selected digit */
+  .sc.sel{background:#0fafff;color:#fff}          /* cell-0-0 in SETTINGS 1 */
+  .sc.sel.given{background:#0fafff}
+  /* "Indicates conflicting entries with a dot in the top-right corner of the
+     cell. This doesn't check that the entries are actually correct." */
+  .sc.conflict::before{content:'';position:absolute;top:4px;right:4px;width:6px;height:6px;
+        border-radius:50%;background:var(--wrong)}
+  /* Progressive hints: stage 1 tints the unit to look in, stage 2 rings the
+     cell. Both sit under .sel so the selected cell still reads as selected. */
+  .sc.hintunit{background:#dff0fd}
+  .sc.hintcell{box-shadow:inset 0 0 0 3px #22a6f2}
+
+  /* An incorrect entry looks exactly as it does in the crossword: red bold,
+     with a diagonal drawn as a gradient across the whole cell so it lands on
+     the corners rather than being a rotated rule that overhangs. */
+  .sc.wrong{z-index:1}
+  .sc.wrong .v{color:var(--wrong);font-weight:700}
+  .sc.wrong::after{content:"";position:absolute;inset:0;background:linear-gradient(to top right,
+    transparent calc(50% - .8px),var(--wrong) calc(50% - .8px),var(--wrong) calc(50% + .8px),transparent calc(50% + .8px))}
+
+  /* core.css exempts the crossword's .cell from the global focus ring but has
+     never heard of .sc, so a selected cell was picking up a 2px ring offset
+     outside itself, on top of the blue. */
+  .sc:focus{outline:none}
+  .sc:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;z-index:3}
+
+  /* candidates: a 3x3 grid inside the cell, each digit in its own fixed slot so
+     the eye can find "is 5 still possible?" without reading the whole cell */
+  .cands{position:absolute;inset:1px;display:grid;grid-template-columns:repeat(3,1fr);
+         grid-template-rows:repeat(3,1fr);pointer-events:none}
+  .cands span{display:flex;align-items:center;justify-content:center;
+        font-size:clamp(7px,1.35vw,10px);font-weight:500;color:#7a7a7a;line-height:1}
+  .sc.sel .cands span{color:#eaf6ff}
+  .caption{margin:16px auto 0;max-width:560px;text-align:center;font-size:15px;
+           line-height:1.5;color:#5f5f5f}
+
+  /* Congratulations — Figma SOVLED 1 */
+  .winstats{display:flex;justify-content:center;gap:56px;margin:18px 0 4px}
+  .winstats div{display:flex;flex-direction:column;gap:2px}
+  .winstats .wl{font-size:14px;font-weight:400;color:var(--ink)}
+  .winstats b{font-size:28px;font-weight:700;color:var(--ink)}
+  .winnext{margin:14px 0 18px;text-align:center}
+  .winnext button{background:none;border:none;cursor:pointer;font-family:var(--font);
+        font-size:14px;font-weight:700;color:var(--ink);text-decoration:underline}
+
+  /* ---------- right rail ---------- */
+  .rail{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .panel{border:1px solid #e4e4e4;border-radius:var(--panel-radius);background:#fff;padding:10px}
+  .prow{display:flex;align-items:stretch}
+  .pbtn{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+        background:none;border:none;padding:9px 2px;border-radius:8px;cursor:pointer;
+        font-family:var(--font);font-size:12.5px;font-weight:600;color:var(--ink)}
+  .pbtn:hover:not(:disabled){background:#f4f4f4}
+  .pbtn:disabled{color:#c2c2c2;cursor:default}
+  .pbtn svg{width:24px;height:24px}
+  .pbtn.hint{color:#e0483f}
+  .pdiv{width:1px;background:#e4e4e4;margin:6px 0}
+  .railhead{text-align:center;font-size:14px;font-weight:600;color:#6f6f6f;margin:2px 0 -4px}
+
+  /* Number pad: digits in three columns beside a mode column (pen / pencil /
+     erase). Splitting the two means a 6x6 gets two digit rows without leaving
+     a hole where the ninth key would be. */
+  .pad{display:flex;align-items:stretch;border:1px solid #e4e4e4;
+       border-radius:var(--panel-radius);overflow:hidden;background:#e4e4e4;gap:1px}
+  /* The digit grid carries a definite ratio (3 columns by however many rows
+     the shape needs), which gives the pad its height. The mode column then
+     divides that same height into three, so a 6x6's two digit rows do not
+     leave the modes hanging past the bottom. */
+  .pad-digits{flex:3 1 0;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+              aspect-ratio:3 / var(--drows,3)}
+  .pad-modes{flex:1 1 0;display:grid;grid-template-rows:repeat(3,1fr);gap:1px;min-height:0}
+  .pad button{background:#fff;border:none;display:flex;align-items:center;
+        justify-content:center;cursor:pointer;font-family:var(--font);font-size:19px;
+        font-weight:700;color:var(--ink3);min-height:0}
+
+  .pad button:hover{background:#f4f4f4}
+  .pad button.done{color:#cfcfcf}          /* all nine of this digit are placed */
+  .pad button svg{width:21px;height:21px}
+  .pad .mode{color:#9a9a9a}
+  .pad .mode.on{color:#0fafff}
+  .pad .erase{color:#e0483f}
+
+  /* ---------- mobile ----------
+     The pad moves under the board and the rail's controls fold into one row,
+     because at 390px a side rail would take the width the grid needs. */
+  #mobiledock{display:none}
+  /* ---------- mobile ----------
+     Measured off the 390x844 "General" frame: 15px side margins, a 360 square
+     board, 20px gaps, a 63-tall action row and a 162-tall pad. The frame
+     carries no caption, so neither do we. */
+  @media(max-width:720px){
+    /* don't let .main absorb the leftover height: the frame stacks toolbar,
+       board, actions and pad from the top and leaves the slack at the bottom */
+    .main{grid-template-columns:1fr;gap:20px;padding:20px 15px 0;align-content:start;
+          flex:0 0 auto}
+    #mobiledock{margin-top:20px}
+    .rail{display:none}
+    .caption{display:none}
+    #mobiledock{display:block;flex:none;padding:0 15px calc(15px + env(safe-area-inset-bottom))}
+    .board{--board-max:min(100vw - 30px, 56vh)}
+    #mobiledock .prow{border:1px solid #e4e4e4;border-radius:8px;margin-bottom:20px;height:63px}
+    #mobiledock .pbtn{font-size:12px;gap:4px;padding:0}
+    #mobiledock .pbtn svg{width:22px;height:22px}
+    /* pad is 360x162 — three 54px rows, digits and modes split 277:83 */
+    #mobiledock .pad{height:162px}
+    #mobiledock .pad-digits{aspect-ratio:auto;grid-auto-rows:1fr;flex:277 1 0}
+    #mobiledock .pad-modes{flex:83 1 0}
+    #mobiledock .pad button{font-size:22px;min-height:0}
+  }
+  /* grow into whatever the frame gives us, bounded by the height so the
+     caption and toolbar always stay on screen */
+  @media(min-width:721px){ .board{--board-max:min(640px,calc(100vh - 210px))} }
+
+  /* ---------- print ----------
+     Ported from crossword.html: the DOM board is replaced by one SVG whose
+     rules are a single <path> per weight, so the rasteriser cannot give some
+     lines more pixels than others — which is exactly what independently
+     bordered DOM cells do. */
+  #printGrid{display:none}
+  @media print{
+    .topbar,.rail,#mobiledock,.overlay,#toast,.board{display:none !important}
+    .main{display:block;padding:0}
+    #printGrid{display:block;margin:0 auto}
+    .caption{margin-top:14px;color:#000}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="main">
+    <div class="gridwrap">
+      <div class="board" id="board"></div>
+      <svg id="printGrid" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="caption" id="caption"></div>
+    </div>
+
+    <div class="rail">
+      <div class="panel">
+        <div class="prow">
+          <button class="pbtn" type="button" id="undoBtn"><svg aria-hidden="true"><use href="icons.svg#i-undo"/></svg>Undo</button>
+          <div class="pdiv"></div>
+          <button class="pbtn" type="button" id="redoBtn"><svg aria-hidden="true"><use href="icons.svg#i-redo"/></svg>Redo</button>
+          <div class="pdiv"></div>
+          <button class="pbtn hint" type="button" id="hintBtn"><svg aria-hidden="true"><use href="icons.svg#i-lifebuoy"/></svg>Hint</button>
+        </div>
+      </div>
+
+      <div class="railhead" id="candHead">Show candidates</div>
+      <div class="panel">
+        <div class="prow">
+          <button class="pbtn" type="button" id="candCell"><svg aria-hidden="true"><use href="icons.svg#i-cand-cell"/></svg>Cell</button>
+          <div class="pdiv"></div>
+          <button class="pbtn" type="button" id="candGrid"><svg aria-hidden="true"><use href="icons.svg#i-cand-grid"/></svg>Grid</button>
+        </div>
+      </div>
+
+      <div class="pad" id="pad" role="group" aria-label="Number pad"></div>
+    </div>
+  </div>
+
+  <div id="mobiledock">
+    <div class="prow" id="mobRail"></div>
+    <div class="pad" id="padMob" role="group" aria-label="Number pad"></div>
+  </div>
+
+  <!-- Settings -->
+  <div class="overlay" id="settingsOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-set">
+    <div class="mhead"><h2 id="dlgH-set">Settings</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <!-- SETTINGS 1: six switches. Same .sgroup/.srow/.sw structure the
+           crossword uses, which is what core.css actually styles. -->
+      <div class="sgroup">
+        <div class="srow"><div class="lab"><b>Error check mode</b><span>Marks incorrect letters with a diagonal line</span></div>
+          <label class="sw"><input type="checkbox" id="optErr"/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Show timer</b><span>Shows the timer while playing this puzzle</span></div>
+          <label class="sw"><input type="checkbox" id="optTimerShown" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Sound</b><span>Control puzzle audio (if available) and multiplayer sounds</span></div>
+          <label class="sw"><input type="checkbox" id="optSound" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Show non-conflicting group</b><span>Highlights the boxes that should not have conflicting entries with the selected box</span></div>
+          <label class="sw"><input type="checkbox" id="optPeers"/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Catch conflicts</b><span>Indicates conflicting entries with a dot in the top-right corner of the cell. This doesn&rsquo;t check that the entries are actually correct</span></div>
+          <label class="sw"><input type="checkbox" id="optConflict" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Highlight selected entries</b><span>Highlights all the entries in the grid that match the entry in the selected box</span></div>
+          <label class="sw"><input type="checkbox" id="optSame" checked/><i></i></label></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="applySettings">Apply</button></div>
+  </div></div>
+
+  <!-- How To Play -->
+  <div class="overlay" id="howtoOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-howto">
+    <div class="mhead"><h2 id="dlgH-howto">How To Play</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>Fill the grid using the values 1 to 9. Each value must appear just once in every row, column and 3&times;3 box.</p>
+      <p><b>Save</b></p>
+      <p>Your progress will automatically be saved every 10 seconds. Additionally, you can tap Save from the navigation menu at any time.</p>
+      <p><b>Pencil and pen modes</b></p>
+      <p>You can enter entries in either pen mode or pencil mode. Use pen mode when you are sure about the entry in a box. Use pencil mode to enter options that are possible for a box. Pencil mode entries are shown in small size. In pencil mode, pressing a key adds the entry as an option for the current box. You can toggle between pen and pencil modes by clicking on the respective buttons in the keypad or by pressing the space bar.</p>
+      <p><b>Undo/Redo</b></p>
+      <p>You can find the undo and redo options on top of the keypad. Click on Undo and Redo to reverse the last actions.</p>
+      <p><b>Check</b></p>
+      <p>Use the Check feature to instantly validate your current board. Any incorrect entries will be highlighted to help you correct mistakes quickly.</p>
+      <p><b>Print</b></p>
+      <p>Use the Print menu to print the empty puzzle, the grid with the letters filled in so far, or the grid with the entire solution.</p>
+      <p><b>Timer</b></p>
+      <p>The timer can be turned on or off. Click on Settings to find the switch.</p>
+      <p><b>Sound</b></p>
+      <p>You can turn off game sounds via the Settings menu if you&rsquo;d rather not have sound while solving the puzzle.</p>
+    </div>
+  </div></div>
+
+  <!-- Support -->
+  <div class="overlay" id="supportOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-support">
+    <div class="mhead"><h2 id="dlgH-support">Support</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <!-- the frame credits PuzzleMe/Amuse Labs; this build is the thing
+           replacing them, so the provenance line is ours (decision D7's
+           spirit: reproduce the design, not its factual errors) -->
+      <p>This player is powered by GameLab</p>
+      <div class="soft">
+        <p>Please include the following in your message:</p>
+        <p><b>Ticket number: <span id="ticketNo">&mdash;</span></b></p>
+        <p>Device type</p><p>Device orientation</p><p>Screenshot (if possible)</p>
+      </div>
+      <hr/>
+      <p id="copyrightLine">&copy; 2026 Tribune Content Agency, LLC</p>
+    </div>
+  </div></div>
+
+  <!-- Print -->
+  <div class="overlay" id="printOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-print">
+    <div class="mhead"><h2 id="dlgH-print">Print</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <div class="printopts" role="radiogroup" aria-label="What to print">
+        <label><input type="radio" class="rdo sm" name="pmode" value="blank" checked/> Blank Puzzle</label>
+        <label><input type="radio" class="rdo sm" name="pmode" value="filled"/> Puzzle with filled entries</label>
+        <label><input type="radio" class="rdo sm" name="pmode" value="solution"/> Solution</label>
+      </div>
+      <p><b>To save ink, adjust the slider:</b></p>
+      <div class="inkrow">
+        <div class="mini3" id="inkPreview" aria-hidden="true">
+          <span class="k"></span><span></span><span class="k"></span>
+          <span></span><span></span><span></span>
+          <span class="k"></span><span></span><span class="k"></span>
+        </div>
+        <input type="range" class="inkslider" id="inkSlider" min="0" max="100" value="100" aria-label="Ink darkness"/>
+      </div>
+      <div class="notebox"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-info"/></svg>
+        <p><b>Please note:</b> Grid lines may not display properly in the print preview in some browsers, but they will print correctly.</p>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="doPrint">Print</button></div>
+  </div></div>
+
+  <!-- Congratulations -->
+  <div class="overlay" id="winOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-win">
+    <div class="mhead"><h2 id="dlgH-win">Congratulations!</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center">
+      <p id="winLine">You completed this puzzle. Keep playing!</p>
+      <!-- SOVLED 1 pairs a percentage with the clock, not a points total -->
+      <div class="winstats">
+        <div><span class="wl">Score</span><b id="winPct">100%</b></div>
+        <div><span class="wl">Time</span><b id="winTime">&mdash;</b></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="winShare">Share</button></div>
+    <p class="winnext"><button type="button" id="winMore">Discover Your New Challenge</button></p>
+  </div></div>
+
+  <!-- shared confirm/notice -->
+  <div class="overlay" id="dialogOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="mhead"><h2 id="dlgTitle">&mdash;</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center"><p id="dlgBody">&mdash;</p></div>
+    <div class="mbtns">
+      <button class="btn sec" type="button" id="dlgClose">Close</button>
+      <button class="btn pri" type="button" id="dlgOk">Ok</button>
+    </div>
+  </div></div>
+
+  <div id="menuScrim"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="live" class="sr-only" role="status" aria-live="polite"></div>
+</div>
+
+<!-- games.js first: core.js reads window.GAMES to resolve the roster entry -->
+<script src="games.js"></script>
+<script src="core.js"></script>
+<script src="sudoku-engine.js"></script>
+<script>
+(function(){
+  'use strict';
+  const $=XW.$;
+  /* One player serves Sudoku and Impossible Sudoku — same engine, same
+     mechanics, same visuals; only generation differs. The id comes from the
+     URL so storage and navigation stay on the right game. */
+  (function(){
+    const want=new URLSearchParams(location.search).get('game')||'sudoku';
+    const g=window.GAMES&&window.GAMES[want];
+    XW.gameId=(g&&g.live&&g.player==='sudoku.html')?want:'sudoku';
+  })();
+  const GEN=(window.GAMES&&window.GAMES[XW.gameId]||{}).generated||{};
+
+  /* ---------- which puzzle ----------
+     Nothing is fetched: the date IS the puzzle. A date in the future is
+     refused rather than generated, which is the same guarantee scheduling
+     gives the crossword — you cannot read tomorrow's by guessing the URL. */
+  const params=new URLSearchParams(location.search);
+  const today=SUDOKU.todayISO();
+  const parsed=SUDOKU.parseId(params.get('p')||'');
+  /* a game with a fixed level (Impossible) never asks and never offers */
+  const level=GEN.level||(parsed&&parsed.difficulty)||params.get('d')||'medium';
+  const asked=(parsed&&parsed.date)||today;
+  const iso=(asked>today)?today:asked;
+  const substituted=(asked>today)?asked:null;
+
+  const P=SUDOKU.forDate(iso,level);
+  const puzId=P.id;
+  XW.puzzleId=puzId;
+  document.title='Sudoku — '+iso;
+  /* "More puzzles" must return to THIS level's archive, not a generic one */
+  const backToArchive=()=>XW.goArchive(GEN.byDifficulty?{difficulty:P.difficulty}:{});
+
+  const DOW=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  (function(){
+    const d=new Date(iso+'T00:00:00');
+    const G=(window.GAMES&&window.GAMES[XW.gameId])||{};
+    const lab=GEN.byDifficulty?((SUDOKU.DIFFICULTY[P.difficulty]||{}).label||''):'';
+    $('#caption').textContent='L. A. Times '+(G.label||'Sudoku')+(lab?' · '+lab:'')+' · '+
+      DOW[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();
+  })();
+
+  /* ---------- state ---------- */
+  /* Everything below reads N from the puzzle: Mini is a 6x6 with 3x2 boxes,
+     the rest are 9x9 with 3x3. Nothing here hardcodes nine. */
+  const N=P.W, CELLS=N*N, SHAPE=SUDOKU.shape(P.bw,P.bh);
+  const givens=P.givens.slice();
+  const vals=givens.slice();                    // 0 = empty
+  const notes=Array.from({length:CELLS},()=>new Set());
+  const struck=new Set();                       // cells a check marked wrong
+  /* "first hint shows what cell or block to focus on and what number is
+     missing, second shows more specifically where it can be entered, third
+     reveals the number" — so a hint is a three-press sequence on one target. */
+  let hintTarget=null, hintStage=0;
+  /* No cell is selected until the reader picks one. Opening with a blue cell
+     already filled in reads as a placed value, and focusing it on load also
+     scrolled the board into view inside the embed. -1 means "none". */
+  let cur=-1;
+  let pencil=false;
+  const undoStack=[], redoStack=[];
+  /* Defaults reproduce the Figma frames: givens grey, the selected digit
+     highlighted yellow, nothing else tinted. Row/column/box highlighting is
+     offered but off, because no reference frame shows it. */
+  /* Defaults reproduce the frames: givens grey, the selected digit
+     highlighted, no group tint. `sound` has nothing to control yet — the game
+     ships no audio — but the switch is in the design, so it is here and inert
+     rather than silently missing. */
+  const opts={err:false,same:true,peers:false,conflict:true,sound:true,auto:true};
+
+  /* ---------- shared chrome ---------- */
+  XW.mountToolbar($('#app'),{
+    left:['timer','print'],
+    right:['settings','assistIcon','menu','assist'],
+    assistItems:[['reveal-number','Reveal number'],['reveal-grid','Reveal grid'],
+                 ['check-cell','Check number'],['check-grid','Check grid']],
+    menuItems:[['more','More puzzles'],['howto','How to play'],['save','Save'],
+               ['restart','Start again'],['share','Share'],['support','Support']]
+  });
+  $('#app').insertBefore($('.topbar'),$('.main'));
+
+  /* ---------- board ---------- */
+  const board=$('#board');
+  board.setAttribute('role','grid');
+  board.setAttribute('aria-label','Sudoku grid, '+N+' by '+N);
+  board.style.setProperty('--n',N);
+  const cellEls=[];
+  for(let r=0;r<N;r++){
+    const row=document.createElement('div');
+    row.setAttribute('role','row');
+    row.style.display='contents';
+    for(let c=0;c<N;c++){
+      const i=r*N+c;
+      const el=document.createElement('div');
+      /* heavy rules on box edges, wherever those fall for this shape */
+      el.className='sc'+((c%P.bw===P.bw-1&&c<N-1)?' br':'')+((r%P.bh===P.bh-1&&r<N-1)?' bb':'');
+      el.setAttribute('role','gridcell');
+      el.tabIndex=-1;
+      el.dataset.i=i;
+      const v=document.createElement('span'); v.className='v'; el.appendChild(v);
+      const cd=document.createElement('div'); cd.className='cands';
+      for(let n=1;n<=N;n++){const s=document.createElement('span');s.dataset.n=n;cd.appendChild(s);}
+      el.appendChild(cd);
+      el.addEventListener('click',()=>{cur=i;render();focusCur();});
+      row.appendChild(el); cellEls.push(el);
+    }
+    board.appendChild(row);
+  }
+  const focusCur=()=>{const e=cellEls[cur];if(e)e.focus({preventScroll:true});};
+  /* the grid still needs one tabbable cell before anything is selected */
+  const tabStop=()=>cur>=0?cur:(givens.findIndex(v=>!v)>=0?givens.findIndex(v=>!v):0);
+
+  /* ---------- rendering ---------- */
+  /* the engine already precomputed row/col/box and the peer sets per shape */
+  const rowOf=i=>SHAPE.rowOf[i], colOf=i=>SHAPE.colOf[i];
+  const peersOf=i=>SHAPE.peers[i];
+  function legalFor(i){
+    const used=new Set();
+    peersOf(i).forEach(j=>{ if(vals[j]) used.add(vals[j]); });
+    const out=[]; for(let n=1;n<=N;n++) if(!used.has(n)) out.push(n);
+    return out;
+  }
+  function countPlaced(n){ let k=0; for(let i=0;i<CELLS;i++) if(vals[i]===n) k++; return k; }
+
+  function render(){
+    const selVal=cur>=0?vals[cur]:0;
+    const peerSet=(opts.peers&&cur>=0)?new Set(peersOf(cur)):new Set();
+    for(let i=0;i<CELLS;i++){
+      const el=cellEls[i], v=vals[i];
+      el.classList.toggle('given',!!givens[i]);
+      el.classList.toggle('peer',peerSet.has(i)&&!givens[i]);
+      el.classList.toggle('same',opts.same&&!!selVal&&v===selVal&&i!==cur);
+      el.classList.toggle('sel',i===cur);
+      el.classList.toggle('hintunit',hintStage===1&&!!hintTarget&&hintTarget.cells.indexOf(i)>=0);
+      el.classList.toggle('hintcell',hintStage>=2&&!!hintTarget&&hintTarget.i===i);
+      /* one appearance for both routes to "this is wrong": a Check that
+         marked it, or error-check mode noticing as it is typed */
+      el.classList.toggle('wrong',!!v&&!givens[i]&&
+        (struck.has(i)||(opts.err&&v!==P.solution[i])));
+      /* a conflict is a duplicate within a unit, which is not the same thing
+         as being wrong — the setting's own description says so */
+      el.classList.toggle('conflict',
+        opts.conflict&&!!v&&peersOf(i).some(j=>vals[j]===v));
+      el.tabIndex=(i===tabStop())?0:-1;
+      el.querySelector('.v').textContent=v?String(v):'';
+      const cd=el.querySelector('.cands');
+      cd.style.display=(!v&&notes[i].size)?'grid':'none';
+      if(!v) [...cd.children].forEach(s=>{ s.textContent=notes[i].has(+s.dataset.n)?s.dataset.n:''; });
+      el.setAttribute('aria-label',
+        'Row '+(rowOf(i)+1)+' column '+(colOf(i)+1)+', '+
+        (v?(givens[i]?'given ':'')+v:'empty')+
+        (!v&&notes[i].size?', candidates '+[...notes[i]].sort().join(' '):''));
+    }
+    [$('#pad'),$('#padMob')].forEach(pad=>{
+      if(!pad) return;
+      pad.querySelectorAll('[data-n]').forEach(b=>{
+        b.classList.toggle('done',countPlaced(+b.dataset.n)===N);
+      });
+      const m=pad.querySelector('[data-mode="pencil"]');
+      if(m) { m.classList.toggle('on',pencil); m.setAttribute('aria-pressed',String(pencil)); }
+      const pen=pad.querySelector('[data-mode="pen"]');
+      if(pen){ pen.classList.toggle('on',!pencil); pen.setAttribute('aria-pressed',String(!pencil)); }
+    });
+    $('#undoBtn').disabled=!undoStack.length;
+    $('#redoBtn').disabled=!redoStack.length;
+    const mu=$('#mobUndo'), mr=$('#mobRedo');
+    if(mu) mu.disabled=!undoStack.length;
+    if(mr) mr.disabled=!redoStack.length;
+    save();
+  }
+
+  /* ---------- moves (undo/redo) ----------
+     Every mutation goes through here, so the history can never miss one. */
+  function snapshot(){ return {vals:vals.slice(),notes:notes.map(s=>[...s]),struck:[...struck]}; }
+  function restore(s){
+    for(let i=0;i<CELLS;i++){ vals[i]=s.vals[i]; notes[i]=new Set(s.notes[i]); }
+    struck.clear(); s.struck.forEach(i=>struck.add(i));
+  }
+  function commit(fn){
+    const before=snapshot();
+    fn();
+    undoStack.push(before); redoStack.length=0;
+    if(undoStack.length>200) undoStack.shift();
+    render(); checkWin();
+  }
+  $('#undoBtn').onclick=()=>{ if(!undoStack.length)return; const s=undoStack.pop();
+    redoStack.push(snapshot()); restore(s); render(); };
+  $('#redoBtn').onclick=()=>{ if(!redoStack.length)return; const s=redoStack.pop();
+    undoStack.push(snapshot()); restore(s); render(); };
+
+  function place(i,n){
+    if(i<0){ XW.toast('Select a cell first'); return; }
+    if(givens[i]) return;
+    commit(()=>{
+      if(pencil){
+        if(vals[i]) return;
+        if(notes[i].has(n)) notes[i].delete(n); else notes[i].add(n);
+      }else{
+        vals[i]=(vals[i]===n)?0:n;
+        notes[i].clear();
+        struck.delete(i);
+        /* placing a number makes it impossible for its peers — clearing those
+           marks by hand is busywork, so do it unless the reader opts out */
+        if(opts.auto&&vals[i]) peersOf(i).forEach(j=>notes[j].delete(n));
+      }
+    });
+  }
+  function erase(i){
+    if(i<0||givens[i]) return;
+    commit(()=>{ vals[i]=0; notes[i].clear(); struck.delete(i); });
+  }
+
+  /* ---------- number pad ---------- */
+  function buildPad(pad){
+    pad.innerHTML='';
+    const digits=document.createElement('div'); digits.className='pad-digits';
+    digits.style.setProperty('--drows',Math.ceil(N/3));
+    for(let n=1;n<=N;n++){
+      const b=document.createElement('button'); b.type='button';
+      b.dataset.n=n; b.textContent=n;
+      b.setAttribute('aria-label','Enter '+n);
+      b.onclick=()=>{ place(cur,n); focusCur(); };
+      digits.appendChild(b);
+    }
+    /* The frame's action-col is btn-draft-pencil, btn-candidate-pencil,
+       btn-eraser. How To Play settles what the first two are: "you can toggle
+       between pen and pencil modes by clicking on the respective buttons in
+       the keypad or by pressing the space bar". */
+    const modes=document.createElement('div'); modes.className='pad-modes';
+    [['pen','i-pen','Pen mode — final entries'],
+     ['pencil','i-pencil','Pencil mode — possible entries'],
+     ['erase','i-trash','Erase this cell']].forEach(([k,ic,label])=>{
+      const b=document.createElement('button'); b.type='button';
+      b.className=(k==='erase'?'erase':'mode'); b.dataset.mode=k;
+      b.innerHTML='<svg aria-hidden="true"><use href="icons.svg#'+ic+'"/></svg>';
+      b.setAttribute('aria-label',label);
+      if(k==='erase'){ b.onclick=()=>{ erase(cur); focusCur(); }; }
+      else { b.setAttribute('aria-pressed','false');
+             b.onclick=()=>{ pencil=(k==='pencil'); render(); focusCur(); }; }
+      modes.appendChild(b);
+    });
+    pad.appendChild(digits); pad.appendChild(modes);
+  }
+  buildPad($('#pad')); buildPad($('#padMob'));
+
+  /* The mobile dock is the frame's action-buttons-row: five equal 72px
+     buttons — Undo, Redo, Hint, Cell, Grid — so "Show candidates" lives here
+     rather than in a panel it has no room for. Each defers to the desktop
+     control so there is one implementation of each action. */
+  (function(){
+    const host=$('#mobRail');
+    [['mobUndo','i-undo','Undo',()=>$('#undoBtn').click()],
+     ['mobRedo','i-redo','Redo',()=>$('#redoBtn').click()],
+     ['mobHint','i-lifebuoy','Hint',()=>$('#hintBtn').click()],
+     ['mobCell','i-cand-cell','Cell',()=>$('#candCell').click()],
+     ['mobGrid','i-cand-grid','Grid',()=>$('#candGrid').click()]].forEach(([id,ic,label,fn],k)=>{
+      if(k){const d=document.createElement('div');d.className='pdiv';host.appendChild(d);}
+      const b=document.createElement('button');
+      b.className='pbtn'+(id==='mobHint'?' hint':''); b.type='button'; b.id=id;
+      b.innerHTML='<svg aria-hidden="true"><use href="icons.svg#'+ic+'"/></svg>'+label;
+      b.onclick=fn; host.appendChild(b);
+    });
+  })();
+
+  /* ---------- candidates ---------- */
+  $('#candCell').onclick=()=>{
+    if(cur<0){ XW.toast('Select a cell first'); return; }
+    if(vals[cur]) { XW.toast('That cell already has a number'); return; }
+    commit(()=>{ notes[cur]=new Set(legalFor(cur)); });
+  };
+  $('#candGrid').onclick=()=>{
+    commit(()=>{ for(let i=0;i<CELLS;i++) if(!vals[i]) notes[i]=new Set(legalFor(i)); });
+  };
+
+  /* ---------- hint ----------
+     The doc grades difficulty by the technique a solve requires, so the hint
+     offers the same ladder: the easiest available deduction first. A naked
+     single (one candidate left in a cell) before a hidden single (a digit with
+     only one home in its unit), and only a bare lookup at the solution if
+     neither is available — which happens when the reader has entered something
+     wrong and the grid no longer deduces cleanly. */
+  const unitsOf=(()=>{
+    const out=[];
+    for(let r=0;r<N;r++){const u=[];for(let c=0;c<N;c++)u.push(r*N+c);out.push({kind:'row',cells:u});}
+    for(let c=0;c<N;c++){const u=[];for(let r=0;r<N;r++)u.push(r*N+c);out.push({kind:'column',cells:u});}
+    const boxes={};
+    for(let i=0;i<CELLS;i++){(boxes[SHAPE.boxOf[i]]=boxes[SHAPE.boxOf[i]]||[]).push(i);}
+    Object.keys(boxes).forEach(k=>out.push({kind:'box',cells:boxes[k]}));
+    return out;
+  })();
+  const boxCells=i=>unitsOf.filter(u=>u.kind==='box')
+                          .find(u=>u.cells.indexOf(i)>=0).cells;
+
+  function nextDeduction(){
+    /* only ever hint a number that is actually correct — with a wrong entry on
+       the board the candidate maths can otherwise "prove" a false placement */
+    for(let i=0;i<CELLS;i++){
+      if(vals[i])continue;
+      const c=legalFor(i);
+      if(c.length===1&&c[0]===P.solution[i])
+        return {i:i,n:c[0],kind:'naked single',unit:'box',cells:boxCells(i)};
+    }
+    for(const u of unitsOf){
+      for(let n=1;n<=N;n++){
+        if(u.cells.some(i=>vals[i]===n))continue;
+        const spots=u.cells.filter(i=>!vals[i]&&legalFor(i).indexOf(n)>=0);
+        if(spots.length===1&&P.solution[spots[0]]===n)
+          return {i:spots[0],n:n,kind:'hidden single',unit:u.kind,cells:u.cells};
+      }
+    }
+    for(let i=0;i<CELLS;i++)
+      if(!vals[i]) return {i:i,n:P.solution[i],kind:'solution',unit:'box',cells:boxCells(i)};
+    return null;
+  }
+
+  $('#hintBtn').onclick=()=>{
+    /* a target that has since been filled is spent — start a fresh sequence */
+    if(!hintTarget||vals[hintTarget.i]){ hintTarget=nextDeduction(); hintStage=0; }
+    if(!hintTarget){ XW.toast('Nothing left to hint'); return; }
+    hintStage++;
+    XW.emit('assist_used',{action:'hint',stage:hintStage});
+    if(hintStage===1){
+      const msg='A '+hintTarget.n+' is missing from this '+hintTarget.unit;
+      XW.toast(msg); XW.announce(msg);
+    }else if(hintStage===2){
+      cur=hintTarget.i;
+      const msg='The '+hintTarget.n+' goes in row '+(rowOf(cur)+1)+', column '+(colOf(cur)+1);
+      XW.toast('The '+hintTarget.n+' goes in the highlighted cell'); XW.announce(msg);
+    }else{
+      const t=hintTarget;
+      commit(()=>{ vals[t.i]=t.n; notes[t.i].clear(); struck.delete(t.i);
+                   if(opts.auto) peersOf(t.i).forEach(j=>notes[j].delete(t.n)); });
+      cur=t.i; hintTarget=null; hintStage=0;
+      XW.announce('Hint placed '+t.n+' at row '+(rowOf(t.i)+1)+' column '+(colOf(t.i)+1));
+    }
+    render(); focusCur();
+  };
+
+  /* ---------- keyboard ---------- */
+  board.addEventListener('keydown',e=>{
+    if(XW.anyOverlayOpen())return;
+    const k=e.key;
+    const move=(dr,dc)=>{
+      if(cur<0){ cur=tabStop(); render(); focusCur(); e.preventDefault(); return; }
+      const r=Math.min(N-1,Math.max(0,rowOf(cur)+dr)), c=Math.min(N-1,Math.max(0,colOf(cur)+dc));
+      cur=r*N+c; render(); focusCur(); e.preventDefault();
+    };
+    if(k==='ArrowUp')return move(-1,0);
+    if(k==='ArrowDown')return move(1,0);
+    if(k==='ArrowLeft')return move(0,-1);
+    if(k==='ArrowRight')return move(0,1);
+    if(cur<0&&(/^[1-9]$/.test(k)||k==='Backspace'||k==='Delete')){
+      cur=tabStop(); render(); focusCur(); e.preventDefault(); return;
+    }
+    if(/^[1-9]$/.test(k)&&+k<=N){ place(cur,+k); e.preventDefault(); return; }
+    if(k==='Backspace'||k==='Delete'){ erase(cur); e.preventDefault(); return; }
+    if(k===' '){ pencil=!pencil; render(); e.preventDefault(); return; }
+  });
+
+  /* ---------- win ----------
+     No scoring: the design doc is explicit that sudoku has none, unlike the
+     crossword. The timer is the only measure the reader gets. */
+  let won=false;
+  function checkWin(){
+    if(won)return;
+    for(let i=0;i<CELLS;i++) if(vals[i]!==P.solution[i])return;
+    won=true; XW.timer.stop();
+    $('#winPct').textContent='100%';
+    $('#winTime').textContent=XW.fmtTime(XW.timer.secs);
+    XW.openOverlay('winOverlay');
+    XW.emit('game_complete',{puzzleId:puzId,seconds:XW.timer.secs});
+    XW.announce('Solved in '+XW.fmtTime(XW.timer.secs)+'.');
+    save();
+  }
+  $('#winMore').onclick=()=>backToArchive();
+  $('#winShare').onclick=()=>{
+    XW.share('copy',XW.shareUrl(),XW.shareText('Sudoku'));
+    XW.emit('share_clicked',{target:'copy'});
+  };
+
+  /* ---------- assist ---------- */
+  /* Pencil marks are not answers, so a cell holding only notes is skipped —
+     the doc treats it as empty. A correct number produces no feedback at all;
+     only the live region speaks, which is invisible to sighted readers. */
+  function checkCells(list){
+    let bad=0;
+    commit(()=>{
+      list.forEach(i=>{
+        if(givens[i]||!vals[i])return;
+        if(vals[i]!==P.solution[i]){ struck.add(i); bad++; } else struck.delete(i);
+      });
+    });
+    XW.announce(bad?bad+' incorrect':'No incorrect numbers found');
+  }
+
+  /* ---------- persistence ---------- */
+  function save(){
+    let filled=0; for(let i=0;i<CELLS;i++) if(!givens[i]&&vals[i])filled++;
+    XW.storage.save(puzId,{
+      vals:vals.join(','),
+      notes:notes.map(s=>[...s].join('')).join('|'),
+      elapsed:XW.timer.secs, completed:won,
+      filled:filled, total:CELLS-P.clues
+    });
+  }
+  function load(){
+    const st=XW.storage.load(puzId); if(!st)return;
+    if(typeof st.vals==='string'){
+      st.vals.split(',').forEach((v,i)=>{ if(!givens[i]) vals[i]=+v||0; });
+    }
+    if(typeof st.notes==='string'){
+      st.notes.split('|').forEach((s,i)=>{ notes[i]=new Set(s.split('').map(Number).filter(Boolean)); });
+    }
+    XW.timer.secs=st.elapsed||0;
+    won=!!st.completed;
+  }
+  load();
+
+  /* ---------- wiring ---------- */
+  XW.wireChrome({
+    title:()=>'Sudoku',
+    assist:act=>{
+      XW.emit('assist_used',{action:act});
+      if(act==='check-cell'){
+        if(cur<0){ XW.toast('Select a cell first'); return; }
+        return checkCells([cur]);
+      }
+      if(act==='check-grid')return checkCells(Array.from({length:CELLS},(_,i)=>i));
+      if(act==='reveal-number'){
+        if(cur<0){ XW.toast('Select a cell first'); return; }
+        if(givens[cur]||vals[cur]===P.solution[cur])return;
+        commit(()=>{ vals[cur]=P.solution[cur]; notes[cur].clear(); struck.delete(cur);
+                     if(opts.auto) peersOf(cur).forEach(j=>notes[j].delete(vals[cur])); });
+        XW.announce('Revealed '+P.solution[cur]+' at row '+(rowOf(cur)+1)+' column '+(colOf(cur)+1));
+        return;
+      }
+      if(act==='reveal-grid'){
+        XW.dialog('Reveal grid','Are you sure you want to reveal all the answers?',()=>{
+          commit(()=>{ for(let i=0;i<CELLS;i++){ vals[i]=P.solution[i]; notes[i].clear(); }
+                       struck.clear(); });
+        },{ok:'Ok',cancel:'Close'});
+      }
+    },
+    menu:act=>{
+      if(act==='more')return backToArchive();
+      if(act==='howto')return XW.openOverlay('howtoOverlay');
+      if(act==='support')return XW.openOverlay('supportOverlay');
+      if(act==='save'){ save(); XW.toast('Progress saved'); return; }
+      if(act==='restart'){
+        XW.dialog('Start Again','Are you sure you want to restart the puzzle?',()=>{
+          commit(()=>{ for(let i=0;i<CELLS;i++){ if(!givens[i])vals[i]=0; notes[i].clear(); } struck.clear(); });
+          hintTarget=null; hintStage=0; won=false; cur=-1;
+          XW.timer.reset(); XW.timer.stopped=false;
+          $('#timerPill').classList.remove('paused');
+          render();
+        },{ok:'Start again',cancel:'Cancel'});
+      }
+    },
+  });
+
+  /* "Timer can be stopped by just clicking on it. The timer can be hidden from
+     the settings" — two separate controls, so the click pauses rather than
+     hides. Resuming re-bases the clock so paused seconds are not billed. */
+  $('#timerPill').addEventListener('click',()=>{
+    XW.timer.stopped=!XW.timer.stopped;
+    if(!XW.timer.stopped) XW.timer._last=Date.now();
+    $('#timerPill').classList.toggle('paused',XW.timer.stopped);
+    $('#timerPill').setAttribute('aria-pressed',String(XW.timer.stopped));
+    XW.announce(XW.timer.stopped?'Timer paused':'Timer running');
+    focusCur();
+  });
+
+  /* The shared confirm dialog stores its action on XW.dlgAction and leaves the
+     buttons to the game — core.js never binds them. Without this, Cancel and
+     the confirm button are both inert. */
+  $('#dlgClose').onclick=()=>XW.closeOverlay($('#dialogOverlay'));
+  $('#dlgOk').onclick=()=>{
+    const a=XW.dlgAction; XW.closeOverlay($('#dialogOverlay')); if(a)a();
+  };
+
+  $('#settingsBtn').onclick=()=>XW.openOverlay('settingsOverlay');
+  $('#applySettings').onclick=()=>{
+    opts.err=$('#optErr').checked; opts.same=$('#optSame').checked;
+    opts.peers=$('#optPeers').checked; opts.conflict=$('#optConflict').checked;
+    opts.sound=$('#optSound').checked;
+    $('#timerPill').classList.toggle('collapsed',!$('#optTimerShown').checked);
+    XW.closeOverlay($('#settingsOverlay')); render();
+  };
+  /* ---------- print (ported from crossword.html) ---------- */
+  $('#printBtn').onclick=()=>XW.openOverlay('printOverlay');
+  const inkSlider=$('#inkSlider'), inkPreview=$('#inkPreview');
+  const INK_MIN=160,INK_MAX=20;   // floor keeps the grid legible at the lightest setting
+  function inkColour(){
+    const pct=+inkSlider.value/100;
+    const lvl=Math.round(INK_MIN-(INK_MIN-INK_MAX)*pct);
+    return 'rgb('+lvl+','+lvl+','+lvl+')';
+  }
+  function paintInk(){
+    const col=inkColour();
+    inkPreview.querySelectorAll('span').forEach(s=>{
+      s.style.borderColor=col; if(s.classList.contains('k'))s.style.background=col;
+    });
+  }
+  inkSlider.addEventListener('input',paintInk); paintInk();
+
+  /* Two paths, not eighty-one bordered boxes: one for the cell rules and one
+     for the heavier box rules. Each path has a single stroke-width, so every
+     line of a given weight rasterises identically. */
+  function buildPrintGrid(){
+    const C=Math.round(396/N), SW=1, SWB=2.4, ink=inkColour(), w=N*C, h=N*C;
+    let givenT='', enteredT='', thin='', thick='';
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+      const i=r*N+c, v=vals[i];
+      if(!v) continue;
+      const x=c*C+C/2, y=r*C+C*0.72;
+      const t='<text x="'+x+'" y="'+y+'" text-anchor="middle">'+v+'</text>';
+      if(givens[i]) givenT+=t; else enteredT+=t;
+    }
+    for(let i=0;i<=N;i++){
+      const vline='M'+(i*C)+' 0V'+h, hline='M0 '+(i*C)+'H'+w;
+      if(i%P.bw===0) thick+=vline; else thin+=vline;
+      if(i%P.bh===0) thick+=hline; else thin+=hline;
+    }
+    const svg=$('#printGrid');
+    svg.setAttribute('viewBox','0 0 '+w+' '+h);
+    svg.setAttribute('width',w); svg.setAttribute('height',h);
+    svg.innerHTML='<rect width="'+w+'" height="'+h+'" fill="#fff"/>'+
+      '<path d="'+thin+'" stroke="'+ink+'" stroke-width="'+SW+'" fill="none" shape-rendering="crispEdges"/>'+
+      '<path d="'+thick+'" stroke="'+ink+'" stroke-width="'+SWB+'" fill="none" shape-rendering="crispEdges"/>'+
+      '<g fill="#000" font-family="Roboto,sans-serif" font-weight="700" font-size="'+(C*0.55)+'">'+givenT+'</g>'+
+      '<g fill="#000" font-family="Roboto,sans-serif" font-size="'+(C*0.55)+'">'+enteredT+'</g>';
+  }
+  window.addEventListener('beforeprint',buildPrintGrid);   // also covers Ctrl+P
+
+  $('#doPrint').onclick=()=>{
+    const mode=document.querySelector('input[name="pmode"]:checked').value;
+    const snap=vals.slice();
+    if(mode==='blank') for(let i=0;i<CELLS;i++) if(!givens[i]) vals[i]=0;
+    if(mode==='solution') for(let i=0;i<CELLS;i++) vals[i]=P.solution[i];
+    buildPrintGrid();
+    XW.closeOverlay($('#printOverlay'));
+    setTimeout(()=>{
+      window.print();
+      for(let i=0;i<CELLS;i++) vals[i]=snap[i];
+      render();
+    },60);
+  };
+  /* SUPPORT 1 shows "lat-d119ce2-1beea03" — a stable id per puzzle, not a
+     shout of the puzzle name */
+  $('#ticketNo').textContent=(function(){
+    let h=0; for(let i=0;i<puzId.length;i++) h=(Math.imul(h,31)+puzId.charCodeAt(i))>>>0;
+    const hex=n=>((n>>>0).toString(16)).slice(-7).padStart(7,'0');
+    const a=hex(h), b=hex(h^0x9e3779b9);
+    return 'lat-'+a+'-'+b;
+  })();
+  $('#copyrightLine').textContent='© '+new Date().getFullYear()+' Tribune Content Agency, LLC';
+
+  /* "Game automatically saves every 10 seconds" — moves already save as they
+     happen; this is what keeps the elapsed time from being lost when a reader
+     sits on one puzzle without touching it. */
+  setInterval(save,10000);
+  XW.timer.onTick=s=>{ $('#timer').textContent=XW.fmtTime(s); };
+  XW.timer.start(XW.timer.secs);
+  if(won)XW.timer.stop();
+  XW.emit('game_start',{puzzleId:puzId});
+  render();
+  if(substituted) setTimeout(()=>XW.toast('“'+substituted+'” is not available yet — showing today'),400);
+})();
+</script>
+</body>
+</html>

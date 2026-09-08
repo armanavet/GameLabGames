@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Sudoku</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<style>
+  /* Difficulty chooser — Figma "Game start 1 / 2" (378:42284 / 378:42327).
+     Each level is its own archive, so this screen is the fork in the road
+     between them rather than a setting applied later. */
+  body{background:#fff}
+  #app{align-items:center;justify-content:center}
+
+  .startcard{width:min(92%,520px);background:var(--sudoku-blue,#00a8f0);border-radius:18px;
+             padding:52px 36px 48px;display:flex;flex-direction:column;align-items:center;gap:24px;
+             text-align:center}
+  .startcard .mark{width:96px;height:96px;display:block}
+  /* Game start 1: 23px Black, uppercased; pills 19px Bold */
+  .startcard h1{margin:0;font-size:23px;font-weight:900;letter-spacing:.02em;
+                text-transform:uppercase;color:#fff;line-height:1.2}
+
+  .levels{display:flex;flex-wrap:wrap;justify-content:center;gap:13px;max-width:400px}
+  .lvl{appearance:none;border:2px solid #fff;background:transparent;color:#fff;
+       border-radius:999px;padding:12px 30px;font-family:var(--font);font-size:19px;
+       font-weight:700;cursor:pointer;transition:background .14s,color .14s,border-color .14s}
+  .lvl:hover{background:rgba(255,255,255,.16)}
+  /* the design marks the chosen level with a solid black pill */
+  .lvl.on{background:#000;border-color:#000;color:#fff}
+  .lvl:focus-visible{outline:3px solid #fff;outline-offset:2px}
+
+  @media(max-width:720px){
+    .startcard{width:min(94%,360px);padding:38px 22px 34px;gap:20px}
+    .startcard .mark{width:76px;height:76px}
+    .startcard h1{font-size:15px}
+    .lvl{padding:10px 22px;font-size:14px}
+    .levels{gap:10px;max-width:320px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="startcard">
+    <svg class="mark" viewBox="0 0 52 52" aria-hidden="true">
+      <g fill="none" stroke="#fff" stroke-width="2.4">
+        <rect x="4" y="4" width="44" height="44" rx="2.5"/>
+        <path d="M18.67 4v44M33.33 4v44M4 18.67h44M4 33.33h44"/>
+      </g>
+    </svg>
+    <h1 id="chooseH">Choose a difficulty level</h1>
+    <div class="levels" id="levels" role="group" aria-labelledby="chooseH"></div>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="live" class="sr-only" role="status" aria-live="polite"></div>
+</div>
+
+<script src="games.js"></script>
+<script src="core.js"></script>
+<script src="sudoku-engine.js"></script>
+<script>
+(function(){
+  'use strict';
+  XW.gameId='sudoku';
+
+  const host=document.getElementById('levels');
+  /* The level list comes from the engine, so adding one is a single edit
+     there rather than a new button here that nothing generates puzzles for. */
+  SUDOKU.LEVELS.forEach(id=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='lvl'; b.dataset.level=id;
+    b.textContent=(SUDOKU.DIFFICULTY[id]||{}).label||id;
+    b.addEventListener('click',()=>{
+      host.querySelectorAll('.lvl').forEach(x=>x.classList.toggle('on',x===b));
+      /* the game never touches window.top — it states the intent and the host
+         decides the URL, exactly as the crossword does */
+      XW.goArchive({difficulty:id});
+    });
+    host.appendChild(b);
+  });
+})();
+</script>
+</body>
+</html>

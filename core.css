@@ -24,19 +24,36 @@
   --ok:#00a15c; --ok-bg:#c9f0dc; --ok-ink:#0a6b41;   /* completed */
   --btn-shadow:0 2.549px 0 rgba(0,0,0,.25);
   --app-max:880px;
+  --sudoku-blue:#00a8f0;      /* Sudoku's card + difficulty screen (378:42284) */
   --font:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
   --font-key:'Inter',var(--font);
 }
 
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;height:100%;background:#fff;font-family:var(--font);color:var(--ink)}
+/* The toolbar sits on its own faint band, edge to edge. It cannot simply be a
+   background on .topbar: that element lives inside #app, which is narrower than
+   the frame and clips with overflow:hidden, so the band would stop short of
+   both sides. Painting it on the page and on #app with the same top-anchored
+   gradient makes it span the full width — --bar-h is measured in core.js, and
+   the fallback covers the moment before that runs. */
+html,body{margin:0;padding:0;height:100%;font-family:var(--font);color:var(--ink);
+  background:linear-gradient(180deg,var(--bar-bg,#f3f3f3) 0,var(--bar-bg,#f3f3f3) var(--bar-h,60px),#fff var(--bar-h,60px)) no-repeat}
 
 /* Figma card is 644 wide; we keep its proportions and scale up to --app-max */
 #app{position:relative;width:100%;max-width:var(--app-max);margin:0 auto;height:100%;
-     background:#fff;overflow:hidden;display:flex;flex-direction:column}
+     background:linear-gradient(180deg,var(--bar-bg,#f3f3f3) 0,var(--bar-bg,#f3f3f3) var(--bar-h,60px),#fff var(--bar-h,60px)) no-repeat;
+     overflow:hidden;display:flex;flex-direction:column}
 
-/* ---------- toolbar (177:6683 / 223:23516) ---------- */
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;flex:none}
+/* A paused timer has to look paused, or a reader who clicked it once assumes
+   the clock is still running. */
+.pill.paused{opacity:.55}
+.pill.paused #timer{text-decoration:line-through}
+
+/* ---------- toolbar (177:6683 / 223:23516) ----------
+   The bar sits on its own faint band rather than on the page white, which is
+   how the Sudoku frames draw it and now the norm for every game. */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;flex:none;
+        background:transparent}
 .tb-side{display:flex;align-items:center;gap:13px}
 .tb-side.right{gap:16px}
 .pill{height:30px;display:flex;align-items:center;gap:8px;padding:0 11px;background:#fff;border:none;
