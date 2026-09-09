@@ -108,11 +108,14 @@ const $ = s => document.querySelector(s);
 const LS = { api:'lat:games:apiBase', tok:'lat:games:adminToken' };
 const state = { api:'', token:'', game:'crossword' };
 
-/* game picker comes from the shared roster */
+/* Game picker comes from the shared roster, minus the games this page cannot
+   act on: a `generated` game (sudoku) derives its puzzles from the date and
+   never reads the backend, so an upload against it would be accepted and then
+   never appear anywhere. Offering it is offering a no-op. */
 (function fillGames(){
   const sel = $('#game');
   Object.entries(window.GAMES).forEach(([id,g]) => {
-    if (g.hidden) return;
+    if (g.hidden || g.generated) return;
     const o = document.createElement('option');
     o.value = id; o.textContent = g.label; sel.appendChild(o);
   });

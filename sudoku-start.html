@@ -12,6 +12,12 @@
   /* Difficulty chooser — Figma "Game start 1 / 2" (378:42284 / 378:42327).
      Each level is its own archive, so this screen is the fork in the road
      between them rather than a setting applied later. */
+  /* core.css paints a band behind the toolbar, sized by --bar-h, which
+     mountToolbar measures. This screen has no toolbar to measure, so the
+     fallback height would leave a grey slab above the card: the bar is
+     genuinely zero tall here, and saying so collapses the band everywhere
+     core.css draws it. */
+  :root{--bar-h:0px}
   body{background:#fff}
   #app{align-items:center;justify-content:center}
 

@@ -156,6 +156,12 @@
      lines more pixels than others — which is exactly what independently
      bordered DOM cells do. */
   #printGrid{display:none}
+  /* The ink preview is a miniature of what actually prints, so on a sudoku it
+     shows digits on rules rather than the crossword's blocked squares. Only
+     the rules take the slider's ink — buildPrintGrid always draws the digits
+     in black — so the digits stay black here too. */
+  #inkPreview span{display:flex;align-items:center;justify-content:center;
+    font-size:14px;font-weight:700;line-height:1;color:#18181b}
   @media print{
     .topbar,.rail,#mobiledock,.overlay,#toast,.board{display:none !important}
     .main{display:block;padding:0}
@@ -211,7 +217,7 @@
       <!-- SETTINGS 1: six switches. Same .sgroup/.srow/.sw structure the
            crossword uses, which is what core.css actually styles. -->
       <div class="sgroup">
-        <div class="srow"><div class="lab"><b>Error check mode</b><span>Marks incorrect letters with a diagonal line</span></div>
+        <div class="srow"><div class="lab"><b>Error check mode</b><span>Marks incorrect numbers with a diagonal line</span></div>
           <label class="sw"><input type="checkbox" id="optErr"/><i></i></label></div>
         <div class="srow"><div class="lab"><b>Show timer</b><span>Shows the timer while playing this puzzle</span></div>
           <label class="sw"><input type="checkbox" id="optTimerShown" checked/><i></i></label></div>
@@ -283,9 +289,9 @@
       <p><b>To save ink, adjust the slider:</b></p>
       <div class="inkrow">
         <div class="mini3" id="inkPreview" aria-hidden="true">
-          <span class="k"></span><span></span><span class="k"></span>
-          <span></span><span></span><span></span>
-          <span class="k"></span><span></span><span class="k"></span>
+          <span>1</span><span></span><span>5</span>
+          <span></span><span>3</span><span></span>
+          <span>2</span><span></span><span>7</span>
         </div>
         <input type="range" class="inkslider" id="inkSlider" min="0" max="100" value="100" aria-label="Ink darkness"/>
       </div>
@@ -830,11 +836,12 @@
     const lvl=Math.round(INK_MIN-(INK_MIN-INK_MAX)*pct);
     return 'rgb('+lvl+','+lvl+','+lvl+')';
   }
+  /* Rules only: a sudoku has no blocked squares to fill, and the digits print
+     black at every slider position, so tinting them would misrepresent the
+     saving. See the #inkPreview note in the stylesheet. */
   function paintInk(){
     const col=inkColour();
-    inkPreview.querySelectorAll('span').forEach(s=>{
-      s.style.borderColor=col; if(s.classList.contains('k'))s.style.background=col;
-    });
+    inkPreview.querySelectorAll('span').forEach(s=>{ s.style.borderColor=col; });
   }
   inkSlider.addEventListener('input',paintInk); paintInk();
 

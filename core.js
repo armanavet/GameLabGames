@@ -149,6 +149,11 @@ window.XW = (function () {
     secs: 0, stopped: false, _last: 0, _tick: null, onTick: null,
     start(from) {
       timer.secs = from || 0; timer.stopped = false; timer._last = Date.now();
+      /* Paint the restored value now. _advance only fires onTick once a whole
+         second has passed, so a resumed solve would read 00:00 until the next
+         tick — and a puzzle reopened after it was completed stops the timer
+         immediately, so that tick never comes and the finishing time is lost. */
+      if (timer.onTick) timer.onTick(timer.secs);
       if (timer._tick) clearInterval(timer._tick);
       timer._tick = setInterval(timer._advance, 1000);
       timer._advance();

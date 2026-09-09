@@ -68,16 +68,22 @@ const canon = '&canonical=' + encodeURIComponent(location.href);
    start screen until one is chosen; then the archive. `d` is what a chosen
    level looks like on the URL. */
 const dq = d ? '&d=' + encodeURIComponent(d) : '';
-const src = p                  ? g.player + '?game=' + encodeURIComponent(gid) +
-                                 '&p=' + encodeURIComponent(p) + canon
-          : (g.start && !d)    ? g.start + '?game=' + encodeURIComponent(gid) + canon
-          : g.archive          ? g.archive + '?game=' + encodeURIComponent(gid) + dq + canon
-                               : g.player + '?game=' + encodeURIComponent(gid) + canon;
+/* Work the view out once. Both the iframe src and the document title depend on
+   it, and deciding it twice is how they drift apart — the title used to say
+   "… archive" while the difficulty screen was on screen. */
+const view = p              ? 'puzzle'
+           : (g.start && !d) ? 'start'
+           : g.archive       ? 'archive'
+                             : 'puzzle';
+const src = view === 'puzzle' ? g.player + '?game=' + encodeURIComponent(gid) +
+                                (p ? '&p=' + encodeURIComponent(p) : '') + canon
+          : view === 'start'  ? g.start + '?game=' + encodeURIComponent(gid) + canon
+                              : g.archive + '?game=' + encodeURIComponent(gid) + dq + canon;
 
 const frame = document.getElementById('game');
 frame.src = src;
 frame.title = g.label;
-document.title = p ? g.label : (g.archive ? g.label + ' archive' : g.label);
+document.title = view === 'archive' ? g.label + ' archive' : g.label;
 
 /* Host side of the navigation contract. The embedded game never touches
    window.top — it posts its intent and the host decides the URL. On
