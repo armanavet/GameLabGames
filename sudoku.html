@@ -24,8 +24,11 @@
   .board{display:grid;grid-template-columns:repeat(var(--n,9),1fr);
          grid-template-rows:repeat(var(--n,9),1fr);
          width:min(100%,var(--board-max,470px));aspect-ratio:1;
-         border:1.5px solid var(--grid);background:var(--grid);gap:0}
-  .sc{position:relative;background:#fff;border:.5px solid #e2e2e2;
+         border:2.5px solid var(--grid);background:var(--grid);gap:0}
+  /* Three weights of rule, so the structure reads before the numbers do:
+     the outer frame heaviest, the box separators next, the cell rules
+     lightest — but dark enough to actually see at phone sizes. */
+  .sc{position:relative;background:#fff;border:.5px solid #808080;
       display:flex;align-items:center;justify-content:center;cursor:pointer;
       font-weight:600;font-size:clamp(15px,3.4vw,26px);color:var(--ink3);
       user-select:none;-webkit-tap-highlight-color:transparent}
@@ -36,7 +39,10 @@
   /* Figma: a given clue sits on grey, anything the reader typed sits on white.
      That is the only thing distinguishing them — weight and colour match. */
   .sc.given{background:#efefef}       /* cell-0-2 etc. */
-  .sc.peer{background:#f6f6f6}
+  /* The selected digit's twins and the selected cell's group share one tint,
+     so "related to what I have selected" reads as a single idea rather than
+     two competing washes. Declared together so the two cannot drift apart. */
+  .sc.peer,
   .sc.same{background:#fdf0b4}                    /* every cell holding the selected digit */
   .sc.sel{background:#0fafff;color:#fff}          /* cell-0-0 in SETTINGS 1 */
   .sc.sel.given{background:#0fafff}
