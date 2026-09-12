@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Turnspell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<style>
+  /* turnspell-only styles — everything shared lives in core.css.
+     The board here is a 3D cube, but everything around it is the same chrome
+     the crossword and sudoku use: same toolbar, same rail, same overlays,
+     same mobile dock, same caption. */
+  /* An amber deep enough to carry white text, sitting in the same family as
+     the platform's peach rather than Wordle's own yellow. */
+  #app{max-width:1040px;--amber2:#bf8412}
+  .main{display:grid;grid-template-columns:1fr 264px;gap:28px;padding:18px 28px 12px;
+        flex:1 1 auto;min-height:0}
+  .stage{min-width:0;display:flex;flex-direction:column;align-items:center;gap:14px}
+
+  /* ---------- the cube ----------
+     54 stickers, each positioned in 3D by its own transform. A face turn is a
+     rotation prepended to the stickers in that layer, which is why nothing
+     here needs to know about faces as containers. */
+  /* Nothing on the cube is clickable — turns come from the buttons — so the
+     whole thing is inert to pointers and unselectable. Without that, dragging
+     to look around highlights the letters instead of orbiting. */
+  .scene{width:100%;display:flex;align-items:center;justify-content:center;
+         perspective:1500px;touch-action:none;cursor:grab;
+         height:var(--scene-h,320px);flex:none;
+         user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  /* Stickers keep pointer events so a swipe can tell which one it started on;
+     everything else in the scene stays inert so the hit always lands on the
+     tile itself. `user-select` alone is what stops the letters highlighting —
+     that was never the job of `pointer-events`. */
+  .scene *{user-select:none;-webkit-user-select:none}
+  .st .ch,.st .num,.corepanel{pointer-events:none}
+  .scene:active{cursor:grabbing}
+  .scene:focus-visible{outline:2px solid var(--focus);outline-offset:4px;border-radius:12px}
+  .cube{position:relative;transform-style:preserve-3d;
+        width:var(--cs,210px);height:var(--cs,210px);
+        --gap:calc(var(--cell,70px) * .045);      /* the dark line between tiles */
+        --core:calc(var(--cs,210px) * .82);       /* the solid dark interior */
+        transform:rotateX(var(--ax,-20deg)) rotateY(var(--ay,-28deg))}
+
+  /* ---------- one tile, one plane ----------
+     A sticker is a single full-cell tile: its own background paints the dark
+     gap, and the coloured face is an inset pseudo-element in the SAME plane.
+     Nothing is stacked a few pixels behind anything else.
+
+     That matters because the previous version gave each sticker a separate
+     dark backing 2px behind it, and at oblique angles 2px is inside Safari's
+     depth-sorting tolerance — the backing won, and the cube grew black
+     patches. Two coplanar layers cannot be mis-sorted, so the whole class of
+     bug is gone rather than tuned around. Tiles also meet edge to edge, which
+     is what seals the shell. */
+  .st{position:absolute;left:50%;top:50%;
+      margin:calc(var(--cell,70px) / -2) 0 0 calc(var(--cell,70px) / -2);
+      width:var(--cell,70px);height:var(--cell,70px);
+      background:#262626;
+      display:flex;align-items:center;justify-content:center;
+      font-weight:700;font-size:calc(var(--cell,70px) * .4);line-height:1;
+      color:var(--ink3);
+      box-sizing:border-box;backface-visibility:hidden;
+      transition:transform .26s cubic-bezier(.4,.05,.2,1), color .18s;
+      transform:var(--lr,rotate(0deg)) var(--pl,translateZ(0))}
+  .st::before{content:'';position:absolute;inset:var(--gap);
+              background:#fff;border-radius:3px;transition:background .18s}
+  .st.nofx{transition:color .18s}
+
+  /* The dark interior you see through the slot a turn opens. Set well inside
+     the shell — far outside any sorting tolerance — and single-sided, so only
+     the three panels facing the reader ever draw. */
+  .corepanel{position:absolute;left:50%;top:50%;
+             margin:calc(var(--core) / -2) 0 0 calc(var(--core) / -2);
+             width:var(--core);height:var(--core);
+             background:#1f1f1f;backface-visibility:hidden}
+
+  /* ---------- Wordle marking ----------
+     The word is never shown, so these three states are the whole clue. A slot
+     is one of the numbered squares the word has to fill; green means the right
+     letter in the right slot, amber means that letter belongs to the word but
+     sits somewhere else in it, and an unmarked slot means the letter is not in
+     the word at all. */
+  .st.on::before{background:#f4f4f4;box-shadow:inset 0 0 0 1.5px #cfcfcf}
+  .st.on.exact::before{background:var(--ok);box-shadow:none}
+  .st.on.moved::before{background:var(--amber2);box-shadow:none}
+  .st.on.exact,.st.on.moved{color:#fff}
+  .st .ch{position:relative;z-index:1}
+  .st .num{position:absolute;z-index:1;top:calc(var(--gap) + 1px);left:calc(var(--gap) + 3px);
+           font-size:calc(var(--cell,70px) * .22);
+           font-weight:700;color:#8a8a8a;line-height:1}
+  .st.on.exact .num,.st.on.moved .num{color:rgba(255,255,255,.85)}
+
+  /* ---------- prompt + goal tiles ---------- */
+  .prompt{font-size:14px;font-weight:600;color:var(--ink);text-align:center;margin:0}
+  .prompt b{font-weight:900}
+  /* The reader's current front face, scored — this is the guess row. */
+  .tiles{display:flex;gap:7px;justify-content:center;flex-wrap:wrap}
+  .tile{width:38px;height:38px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+        font-size:19px;font-weight:700;background:#f4f4f4;color:var(--ink3);border:1.5px solid #d6d6d6}
+  .tile.exact{background:var(--ok);border-color:#0a7d4c;color:#fff}
+  .tile.moved{background:var(--amber2);border-color:#96670c;color:#fff}
+  .viewrow{display:flex;justify-content:center}
+  .viewbtn{border:1px solid var(--panel-line);background:#fff;border-radius:16px;height:28px;
+           padding:0 13px;font-family:var(--font);font-size:11.5px;font-weight:600;color:#5f5f5f;
+           cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .viewbtn:hover{background:#f4f4f4;color:var(--ink)}
+  .mbody b.lg{color:var(--ok-ink)}
+  .mbody b.la{color:#8a5f0a}
+  .caption{font-size:12.5px;color:#8a8a8a;text-align:center;margin:0}
+
+  /* ---------- move pad ----------
+     Face names, not Rubik's notation. The audience is a newspaper reader, not
+     a speedcuber, and "Top ↺" needs no explaining where "U'" does. */
+  .pad{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 8px;align-items:center;
+       width:100%;max-width:290px}
+  .pad .ph{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+           color:#8a8a8a;text-align:center}
+  .pad .fl{font-size:12.5px;font-weight:700;color:var(--ink);text-align:right;padding-right:2px}
+  .mv{height:34px;border:1px solid var(--panel-line);background:#fff;border-radius:7px;
+      font-family:var(--font);font-size:16px;font-weight:700;color:var(--ink);cursor:pointer;
+      display:flex;align-items:center;justify-content:center;transition:background .12s}
+  .mv:hover{background:var(--band)}
+  .mv:active{background:var(--active)}
+
+  /* ---------- right rail (same shape as the sudoku's) ---------- */
+  .rail{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .rbox{border:1px solid #e6e6e6;border-radius:var(--panel-radius);background:#fff;padding:12px}
+  .railhead{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+            color:#8a8a8a;text-align:center;margin-bottom:9px}
+  .prow{display:flex;gap:8px}
+  .pbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;
+        border:none;background:none;font-family:var(--font);font-size:11.5px;font-weight:600;
+        color:var(--ink);cursor:pointer;border-radius:8px}
+  .pbtn svg{width:20px;height:20px}
+  .pbtn:hover:not(:disabled){background:#f4f4f4}
+  .pbtn:disabled{color:#c4c4c4;cursor:default}
+  .pbtn.hint{color:var(--wrong)}
+  .pbtn.hint:disabled{color:#e3b3b0}
+
+  /* ---------- the goal-word ladder ---------- */
+  .ladder{display:flex;flex-direction:column;gap:7px}
+  .rung{display:flex;align-items:center;gap:9px;padding:7px 9px;border:1.5px solid #e6e6e6;
+        border-radius:9px;background:#fff;cursor:pointer;text-align:left;font-family:var(--font)}
+  .rung:hover{border-color:var(--line)}
+  .rung.on{border-color:var(--ink);background:#fbfbfb}
+  .rung.won{background:var(--ok-bg);border-color:#a9e2c4}
+  .rung .len{font-size:11.5px;font-weight:700;color:#8a8a8a;width:12px;flex:none}
+  .rung .mini{display:flex;gap:3px;flex:1}
+  .rung .mini i{width:15px;height:18px;border-radius:3px;background:#efefef;
+                display:block;flex:none;box-shadow:inset 0 0 0 1px #dcdcdc}
+  .rung .mini i.exact{background:var(--ok);box-shadow:none}
+  .rung .mini i.moved{background:var(--amber2);box-shadow:none}
+  .rung .tick{font-size:11px;font-weight:700;color:var(--ok-ink);flex:none}
+
+  /* ---------- mobile ---------- */
+  #mobiledock{display:none}
+  @media(max-width:860px){
+    .main{grid-template-columns:1fr;gap:12px;padding:10px 12px 4px}
+    .rail{display:none}
+    /* The stack has to fit the viewport without scrolling, exactly as the
+       other two players do — so the cube takes whatever height is left. */
+    #mobiledock{display:flex;flex-direction:column;gap:10px;padding:8px 12px 14px;flex:none;
+                border-top:1px solid #ececec;background:#fff}
+    #mobiledock .prow{justify-content:space-between}
+    #mobiledock .pad{max-width:none;margin:0 auto;max-width:320px}
+    .ladder.mob{display:flex;flex-direction:row;gap:6px}
+    .ladder.mob .rung{flex:1;flex-direction:column;gap:4px;padding:6px 4px;align-items:center}
+    .ladder.mob .rung .len{width:auto}
+    .ladder.mob .mini i{width:9px;height:12px}
+    /* Hold the tick's line whether or not it says anything yet, so a solve
+       never changes the row's height. Same reason the prompt reserves two
+       lines: its longest wording wraps to two on a phone, and letting it
+       shrink to one on a solve would resize the cube under the reader. */
+    .ladder.mob .rung .tick{min-height:13px;line-height:13px}
+    .prompt{line-height:1.45;min-height:2.9em}
+    .tile{width:32px;height:32px;font-size:16px}
+  }
+  @media(min-width:861px){ .ladder.mob{display:none} }
+  @media(prefers-reduced-motion:reduce){ .st{transition:background .18s,color .18s} }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="main">
+    <div class="stage">
+      <div class="scene" id="scene" tabindex="0" role="application"
+           aria-label="Letter cube. Drag to look around; use the turn buttons to rotate a face.">
+        <div class="cube" id="cube"></div>
+      </div>
+      <div class="viewrow">
+        <button class="viewbtn" type="button" id="viewReset">Reset view</button>
+      </div>
+      <p class="prompt" id="prompt">&mdash;</p>
+      <div class="tiles" id="tiles"></div>
+      <div class="pad" id="pad"></div>
+      <div class="ladder mob" id="ladderMob"></div>
+      <p class="caption" id="caption"></p>
+    </div>
+
+    <div class="rail">
+      <div class="rbox">
+        <div class="prow">
+          <button class="pbtn" type="button" id="undoBtn"><svg aria-hidden="true"><use href="icons.svg#i-undo"/></svg>Undo</button>
+          <button class="pbtn" type="button" id="resetBtn"><svg aria-hidden="true"><use href="icons.svg#i-redo"/></svg>Restart</button>
+          <button class="pbtn hint" type="button" id="hintBtn"><svg aria-hidden="true"><use href="icons.svg#i-lifebuoy"/></svg>Hint</button>
+        </div>
+      </div>
+      <div class="rbox">
+        <div class="railhead">Goal words</div>
+        <div class="ladder" id="ladder"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mobiledock">
+    <div class="prow" id="mobRow"></div>
+  </div>
+
+  <!-- Settings -->
+  <div class="overlay" id="settingsOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-set">
+    <div class="mhead"><h2 id="dlgH-set">Settings</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <div class="sgroup">
+        <div class="srow"><div class="lab"><b>Show timer</b><span>Shows the timer while playing this puzzle</span></div>
+          <label class="sw"><input type="checkbox" id="optTimerShown" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Swipe the cube to turn</b><span>Swipe across a face to turn it. Drag the background to look around.</span></div>
+          <label class="sw"><input type="checkbox" id="optSwipe"/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Animate turns</b><span>Turn this off if the cube feels slow on your device</span></div>
+          <label class="sw"><input type="checkbox" id="optAnim" checked/><i></i></label></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="applySettings">Apply</button></div>
+  </div></div>
+
+  <!-- How to play -->
+  <div class="overlay" id="howtoOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-howto">
+    <div class="mhead"><h2 id="dlgH-howto">How To Play</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>Three words are hidden in one cube. Every square carries a letter, and you turn the faces until a word lines up on the numbered squares of the <b>front face</b>.</p>
+      <p><b>You are never told the words.</b> The squares tell you how close you are, the way Wordle does:</p>
+      <p><b class="lg">Green</b> &mdash; the right letter in the right square.<br/>
+         <b class="la">Amber</b> &mdash; that letter is in the word, but belongs in a different square.<br/>
+         <b>Grey</b> &mdash; that letter is not in the word at all.</p>
+      <p>The numbers show the order: the <b>four corners</b> first, then the <b>centre</b>, then an <b>edge</b>. So a four-letter word sits on the corners alone.</p>
+      <p>All three words share the same cube, so switching between them changes nothing &mdash; and every turn gives you clues about all three at once.</p>
+      <p>Use the turn buttons, or the keys <b>T</b>&nbsp;/&nbsp;<b>B</b>&nbsp;/&nbsp;<b>L</b>&nbsp;/&nbsp;<b>R</b>&nbsp;/&nbsp;<b>F</b>&nbsp;/&nbsp;<b>K</b> for top, bottom, left, right, front and back. Hold <b>Shift</b> to turn the other way. Drag the cube to look around it, and <b>Reset view</b> to face the front again.</p>
+      <p>No word is more than six turns from where you start. Your score is the turns you take and the time on the clock.</p>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" data-close>Got it</button></div>
+  </div></div>
+
+  <!-- Support -->
+  <div class="overlay" id="supportOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-support">
+    <div class="mhead"><h2 id="dlgH-support">Support</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>Something not working? Quote the ticket number below and we can look up this exact puzzle.</p>
+      <p><b>Ticket number: <span id="ticketNo">&mdash;</span></b></p>
+      <p id="copyrightLine">&copy; 2026 Tribune Content Agency, LLC</p>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" data-close>Close</button></div>
+  </div></div>
+
+  <!-- Win -->
+  <div class="overlay" id="winOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-win">
+    <div class="mhead"><h2 id="dlgH-win">Congratulations!</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center">
+      <p id="winLine">You spelled all three words. Keep playing!</p>
+      <div class="stats">
+        <div class="stat"><span>Turns</span><b id="winMoves">0</b></div>
+        <div class="stat"><span>Time</span><b id="winTime">&mdash;</b></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="winShare">Share</button></div>
+    <p class="winnext"><button type="button" id="winMore">More puzzles</button></p>
+  </div></div>
+
+  <!-- shared confirm/notice -->
+  <div class="overlay" id="dialogOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="mhead"><h2 id="dlgTitle">&mdash;</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center"><p id="dlgBody">&mdash;</p></div>
+    <div class="mbtns">
+      <button class="btn sec" type="button" id="dlgClose">Close</button>
+      <button class="btn pri" type="button" id="dlgOk">Ok</button>
+    </div>
+  </div></div>
+
+  <div id="menuScrim"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div id="live" class="sr-only" role="status" aria-live="polite"></div>
+</div>
+
+<script src="games.js"></script>
+<script src="core.js"></script>
+<script src="turnspell-engine.js"></script>
+<script>
+(function(){
+  'use strict';
+  const $=XW.$, T=window.TURNSPELL;
+
+  (function(){
+    const want=new URLSearchParams(location.search).get('game')||'turnspell';
+    const g=window.GAMES&&window.GAMES[want];
+    XW.gameId=(g&&g.live&&g.player==='turnspell.html')?want:'turnspell';
+  })();
+
+  /* ---------- which puzzle ----------
+     Nothing is fetched: the date is the puzzle. A future date is refused
+     rather than generated, the same guarantee the sudoku gives. */
+  const params=new URLSearchParams(location.search);
+  const today=T.todayISO();
+  const parsed=T.parseId(params.get('p')||'');
+  const asked=(parsed&&parsed.date)||today;
+  const iso=(asked>today)?today:asked;
+  const substituted=(asked>today)?asked:null;
+
+  const P=T.forDate(iso), puzId=P.id;
+  XW.puzzleId=puzId;
+  document.title='Turnspell — '+iso;
+
+  const DOW=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  (function(){
+    const d=new Date(iso+'T00:00:00');
+    const G=(window.GAMES&&window.GAMES[XW.gameId])||{};
+    $('#caption').textContent='L. A. Times '+(G.label||'Turnspell')+' · '+
+      DOW[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear()+(G.tag?' · '+G.tag:'');
+  })();
+
+  /* ---------- state ----------
+     ONE cube for the whole puzzle. `active` is only which word's slots are
+     being judged — changing it does not touch `state`, because every word is
+     planted into this same cube. `solvedAt` records the turn count when each
+     word fell. */
+  const LENS=P.lengths;
+  let active=LENS[0], state=null, hist=[], moves=0;
+  const solvedAt={};
+  let won=false;
+  const opts={anim:true, swipe:false};
+
+  /* Face names rather than notation, in the order a reader scans them. */
+  const FACE_LABEL={U:'Top',D:'Bottom',L:'Left',R:'Right',F:'Front',B:'Back'};
+  const PAD_ORDER=['U','F','R','L','B','D'];
+  /* The CSS rotation that matches a clockwise turn of each face, in cube
+     space. Axis and angle are kept apart so a prime turn is an honest sign
+     flip rather than string surgery on "rotateY(-90deg)". */
+  const LAYER_AXIS={U:'Y',D:'Y',R:'X',L:'X',F:'Z',B:'Z'};
+  const LAYER_DEG={U:-90,D:90,R:90,L:-90,F:90,B:-90};
+  const layerCss=(f,prime)=>'rotate'+LAYER_AXIS[f]+'('+(prime?-LAYER_DEG[f]:LAYER_DEG[f])+'deg)';
+  const FACE_ROT={F:'',B:'rotateY(180deg)',R:'rotateY(90deg)',
+                  L:'rotateY(-90deg)',U:'rotateX(90deg)',D:'rotateX(-90deg)'};
+
+  /* ---------- shared chrome ---------- */
+  const app=document.getElementById('app');
+  XW.mountToolbar(app,{
+    left:['timer',{id:'moves',kind:'pill',icon:'i-redo',size:15,text:'0',label:'Turns taken'}],
+    right:['settings','menu'],
+    menuItems:[['more','More puzzles'],['howto','How to play'],['restart','Start again'],
+               ['share','Share'],['support','Support']]
+  });
+  app.insertBefore($('.topbar'),$('.main'));
+
+  /* ---------- build the 54 stickers ---------- */
+  const cubeEl=$('#cube'), els=[];
+  const faceOf=n=>T.FACE_IDS.find(f=>{const N=T.FACES[f].n;return N[0]===n[0]&&N[1]===n[1]&&N[2]===n[2];});
+  const setPlace=(i,pl)=>els[i].style.setProperty('--pl',pl);
+  const setLayer=(i,lr)=>els[i].style.setProperty('--lr',lr);
+  const setFx=(i,off)=>els[i].classList.toggle('nofx',off);
+
+  function buildCube(){
+    cubeEl.innerHTML=''; els.length=0;
+    /* the static dark interior, six panels well inside the shell */
+    T.FACE_IDS.forEach(f=>{
+      const c=document.createElement('div');
+      c.className='corepanel'; c.setAttribute('aria-hidden','true');
+      c.style.transform=(FACE_ROT[f]?FACE_ROT[f]+' ':'')+'translateZ(calc(var(--core) / 2))';
+      cubeEl.appendChild(c);
+    });
+    for(let i=0;i<54;i++){
+      const d=document.createElement('div');
+      d.className='st';
+      const num=document.createElement('span'); num.className='num'; num.setAttribute('aria-hidden','true');
+      const v=document.createElement('span'); v.className='ch';
+      d.appendChild(num); d.appendChild(v);
+      cubeEl.appendChild(d); els.push(d);
+    }
+  }
+
+  /* A sticker's placement: rotate to its face, push out to the surface, then
+     slide to its cell. Recomputed after every turn — the DOM node stays put
+     and only its transform changes. */
+  function placement(st){
+    const f=faceOf(st.n), cell=T.cellOf(f,st.p);
+    const row=Math.floor(cell/3), col=cell%3;
+    return (FACE_ROT[f]?FACE_ROT[f]+' ':'')+'translateZ(var(--half)) '+
+           'translate(calc(var(--cell) * '+(col-1)+'), calc(var(--cell) * '+(row-1)+'))';
+  }
+
+  /* Marks for every word at once — each reads the same front face at its own
+     length, which is why a single turn is a clue about all three. */
+  function marksFor(L){
+    return T.mark(T.frontWord(state,L),P.goals[L].word);
+  }
+  /* which numbered slot, if any, a front-face cell is — PATH order */
+  const slotOfCell=cell=>T.PATH.indexOf(cell);
+
+  function paint(){
+    const L=active;
+    const m=marksFor(L);
+    const front=T.frontWord(state,L);
+    state.forEach((st,i)=>{
+      const el=els[i], f=faceOf(st.n), cell=T.cellOf(f,st.p);
+      setPlace(i,placement(st));
+      setLayer(i,'rotate(0deg)');
+      el.querySelector('.ch').textContent=st.ch;
+      const k=(f==='F')?slotOfCell(cell):-1;
+      const inWord=(k>=0&&k<L);
+      el.classList.toggle('on',inWord);
+      el.classList.toggle('exact',inWord&&m[k]==='exact');
+      el.classList.toggle('moved',inWord&&m[k]==='moved');
+      el.querySelector('.num').textContent=inWord?String(k+1):'';
+      el.setAttribute('aria-hidden','true');
+    });
+
+    /* The guess row: what is on the front face right now, scored. The answer
+       is never printed anywhere. */
+    const tiles=$('#tiles'); tiles.innerHTML='';
+    for(let k=0;k<L;k++){
+      const t=document.createElement('div');
+      t.className='tile'+(m[k]==='absent'?'':' '+m[k]);
+      t.textContent=front[k]||'';
+      tiles.appendChild(t);
+    }
+
+    const WHERE={4:'the four corners',5:'the corners and the centre',
+                 6:'the corners, the centre and one edge'};
+    const greens=m.filter(x=>x==='exact').length;
+    $('#prompt').innerHTML=solvedAt[L]!==undefined
+      ? 'Found in <b>'+solvedAt[L]+'</b> turns.'
+      : '<b>'+L+' letters</b> on '+(WHERE[L]||'the numbered squares')+
+        ' &middot; '+greens+' of '+L+' in place';
+
+    XW.setChip('moves',String(moves));
+    $('#undoBtn').disabled=!hist.length;
+    $('#hintBtn').disabled=solvedAt[L]!==undefined;
+    paintLadder();
+    save();
+  }
+
+  function paintLadder(){
+    [$('#ladder'),$('#ladderMob')].forEach(host=>{
+      host.innerHTML='';
+      LENS.forEach(L=>{
+        const m=marksFor(L), solved=solvedAt[L]!==undefined;
+        const b=document.createElement('button');
+        b.type='button';
+        b.className='rung'+(L===active?' on':'')+(solved?' won':'');
+        b.setAttribute('aria-current',L===active?'true':'false');
+        const len=document.createElement('span'); len.className='len'; len.textContent=L;
+        const mini=document.createElement('span'); mini.className='mini';
+        /* every row is live, so a turn shows its effect on all three words */
+        for(let k=0;k<L;k++){
+          const c=document.createElement('i');
+          const st=solved?'exact':m[k];
+          if(st!=='absent') c.className=st;
+          mini.appendChild(c);
+        }
+        b.appendChild(len); b.appendChild(mini);
+        /* The tick line is always here, empty until the word falls. Adding it
+           only on a solve made the row taller mid-game, which pushed the
+           ladder under the mobile dock and clipped it. */
+        const t=document.createElement('span'); t.className='tick';
+        t.textContent=solved?('✓ '+solvedAt[L]):'';
+        b.appendChild(t);
+        b.setAttribute('aria-label',L+'-letter word, '+
+          (solved?'found in '+solvedAt[L]+' turns'
+                 :m.filter(x=>x==='exact').length+' of '+L+' letters in place'));
+        b.addEventListener('click',()=>setActive(L));
+        host.appendChild(b);
+      });
+    });
+  }
+
+  /* Switching target words must not disturb the cube — same cube, different
+     slots being judged. This is the whole point of planting them together. */
+  function setActive(L){
+    if(busy) return;
+    active=L;
+    paint();
+    XW.announce(L+'-letter word selected. The cube has not changed.');
+  }
+
+  /* ---------- turning ---------- */
+  let busy=false;
+  function turn(move,record){
+    if(busy||won) return;
+    const f=move[0], a=T.axisOf(f), s=T.signOf(f);
+    const css=layerCss(f,move.length>1);
+    if(record!==false){ hist.push(move); moves++; }
+
+    const affected=[];
+    state.forEach((st,i)=>{ if(st.p[a]===s) affected.push(i); });
+
+    const commit=()=>{
+      T.applyMove(state,move);
+      affected.forEach(i=>setFx(i,true));
+      paint();
+      /* one forced reflow so the reset transform is not itself animated */
+      void cubeEl.offsetWidth;
+      affected.forEach(i=>setFx(i,false));
+      busy=false;
+      checkWin();
+    };
+
+    if(!opts.anim||window.matchMedia('(prefers-reduced-motion: reduce)').matches){ commit(); return; }
+    busy=true;
+    affected.forEach(i=>setLayer(i,css));
+    setTimeout(commit,270);
+  }
+
+  /* ---------- win ----------
+     Every turn is checked against ALL the words, not just the one being
+     chased — you can stumble onto a word you were not aiming at, and being
+     told so is more satisfying than having it pass unnoticed. */
+  function checkWin(){
+    let found=null;
+    LENS.forEach(L=>{
+      if(solvedAt[L]!==undefined) return;
+      if(T.frontWord(state,L)===P.goals[L].word){ solvedAt[L]=moves; found=L; }
+    });
+    if(found===null) return;
+
+    const word=P.goals[found].word;
+    paintLadder(); save();
+    XW.emit('assist_used',{action:'word_found',len:found});
+
+    if(LENS.every(L=>solvedAt[L]!==undefined)){
+      won=true; XW.timer.stop();
+      $('#winMoves').textContent=String(moves);
+      $('#winTime').textContent=XW.fmtTime(XW.timer.secs);
+      XW.openOverlay('winOverlay');
+      XW.emit('game_complete',{puzzleId:puzId,seconds:XW.timer.secs,moves:moves});
+      XW.announce('All words found in '+moves+' turns.');
+      return;
+    }
+    /* Now that it is solved the word can be named — that is the reward. */
+    XW.toast('“'+word+'” — found it.');
+    XW.announce('“'+word+'” found. '+
+      LENS.filter(L=>solvedAt[L]===undefined).length+' to go.');
+    if(found===active){
+      const next=LENS.find(L=>solvedAt[L]===undefined);
+      if(next!==undefined) setTimeout(()=>{ if(!won) setActive(next); },900);
+    }
+  }
+
+  /* ---------- hint ----------
+     Asks the engine from wherever the player actually is; it searches nearby
+     and otherwise retraces their own turns back onto the planted route. */
+  /* Hint plays the turn rather than describing it. It still says which turn it
+     was, so the reader can follow the reasoning and pick it up themselves —
+     and it counts as a turn, because the cube really did move. */
+  $('#hintBtn').onclick=()=>{
+    if(busy||solvedAt[active]!==undefined) return;
+    const m=T.nextMove(state,P.goals[active],hist);
+    XW.emit('assist_used',{action:'hint'});
+    if(!m){ XW.toast('Try Undo — that is further from the word than it looks.'); return; }
+    const f=m[0], dir=m.length>1?'anticlockwise':'clockwise';
+    turn(m);
+    XW.toast('Turned the '+FACE_LABEL[f].toLowerCase()+' face '+dir+'.');
+    XW.announce('Hint: turned the '+FACE_LABEL[f]+' face '+dir+'.');
+  };
+  $('#undoBtn').onclick=()=>{
+    if(!hist.length||busy) return;
+    const m=hist.pop();
+    moves++;                             /* an undo is a turn; it still costs */
+    turn(T.invert(m),false);
+  };
+  /* Restart puts the one cube back to how it was dealt. Words already found
+     stay found — you earned those. */
+  $('#resetBtn').onclick=()=>{
+    XW.dialog('Start again','Put the cube back the way it was dealt?',()=>{
+      XW.closeOverlay($('#dialogOverlay'));
+      state=T.clone(P.start);
+      hist=[];
+      paint();
+      XW.announce('Cube reset to the start.');
+    },{ok:'Restart',cancel:'Cancel'});
+  };
+  /* The view, not the puzzle — put the camera back where it began. */
+  $('#viewReset').onclick=()=>{
+    ax=AX_HOME; ay=AY_HOME; applyOrbit();
+    XW.announce('View reset.');
+  };
+
+  /* ---------- move pad ---------- */
+  (function buildPad(){
+    const pad=$('#pad');
+    pad.innerHTML='';
+    const blank=document.createElement('span'); blank.className='ph'; pad.appendChild(blank);
+    ['↺','↻'].forEach(g=>{ const h=document.createElement('span'); h.className='ph'; h.textContent=g; pad.appendChild(h); });
+    PAD_ORDER.forEach(f=>{
+      const lab=document.createElement('span'); lab.className='fl'; lab.textContent=FACE_LABEL[f];
+      pad.appendChild(lab);
+      [["'",'↺','anticlockwise'],['','↻','clockwise']].forEach(([suf,glyph,dir])=>{
+        const b=document.createElement('button');
+        b.type='button'; b.className='mv'; b.textContent=glyph;
+        b.dataset.move=f+suf;
+        b.setAttribute('aria-label','Turn the '+FACE_LABEL[f]+' face '+dir);
+        b.addEventListener('click',()=>turn(f+suf));
+        pad.appendChild(b);
+      });
+    });
+  })();
+
+  /* the dock reuses the rail's three actions rather than growing its own */
+  (function buildMobRow(){
+    const row=$('#mobRow');
+    [['undoBtn','i-undo','Undo'],['resetBtn','i-redo','Restart'],['hintBtn','i-lifebuoy','Hint']]
+      .forEach(([id,ic,label])=>{
+        const b=document.createElement('button');
+        b.type='button'; b.className='pbtn'+(id==='hintBtn'?' hint':'');
+        b.innerHTML='<svg aria-hidden="true"><use href="icons.svg#'+ic+'"/></svg>'+label;
+        b.addEventListener('click',()=>document.getElementById(id).click());
+        b.id='m-'+id;
+        row.appendChild(b);
+      });
+    const sync=()=>{ ['undoBtn','resetBtn','hintBtn'].forEach(id=>{
+      const src=document.getElementById(id), dst=document.getElementById('m-'+id);
+      if(src&&dst) dst.disabled=src.disabled; }); };
+    new MutationObserver(sync).observe($('.rail'),{attributes:true,subtree:true,attributeFilter:['disabled']});
+    sync();
+  })();
+
+  /* ---------- orbit: drag, keys, and a sane default ---------- */
+  /* A gentle tilt on purpose: the word lives on the front face, so that face
+     stays close to square and readable, and the top and right are angled just
+     enough to see what is coming. */
+  /* Vertical tilt is bounded because it is the axis that runs out of room; at
+     34 degrees the projection is about 1.4x the cube, inside the 1.5x the
+     scene reserves. Turning all the way round horizontally costs nothing, so
+     that stays free. */
+  const AX_MAX=34;
+  const AX_HOME=-20, AY_HOME=-28;      /* what "Reset view" goes back to */
+  let ax=AX_HOME, ay=AY_HOME, drag=null;
+  const applyOrbit=()=>{ cubeEl.style.setProperty('--ax',ax+'deg');
+                         cubeEl.style.setProperty('--ay',ay+'deg'); };
+  /* ---------- swipe to turn ----------
+     Which layer a swipe means depends on where it started and which way it
+     went ACROSS THE FACE — so the face's two on-screen directions are read
+     off the rendered stickers themselves rather than re-deriving the
+     projection. Ask where the neighbouring cells actually are and the answer
+     is right for whatever orientation the cube happens to be in. */
+  const dot3=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const SWIPE_MIN=16;                      /* below this it was a tap, not a swipe */
+
+  function faceAxes(f){
+    const byCell={};
+    state.forEach((st,i)=>{ if(faceOf(st.n)===f) byCell[T.cellOf(f,st.p)]=els[i]; });
+    const mid=cell=>{ const r=byCell[cell].getBoundingClientRect();
+                      return {x:r.left+r.width/2, y:r.top+r.height/2}; };
+    const c1=mid(1), c2=mid(2), c4=mid(4);
+    /* cells are row-major from the face's own basis: 2 minus 1 is one step
+       along `right`, 1 minus 4 is one step along `up` */
+    return { right:{x:c2.x-c1.x, y:c2.y-c1.y}, up:{x:c1.x-c4.x, y:c1.y-c4.y} };
+  }
+
+  function moveForSwipe(idx,dx,dy){
+    const st=state[idx], f=faceOf(st.n), F=T.FACES[f];
+    const ax2=faceAxes(f);
+    const alongR=(dx*ax2.right.x+dy*ax2.right.y)/Math.hypot(ax2.right.x,ax2.right.y);
+    const alongU=(dx*ax2.up.x+dy*ax2.up.y)/Math.hypot(ax2.up.x,ax2.up.y);
+
+    let axisVec, level, prime;
+    if(Math.abs(alongR)>=Math.abs(alongU)){
+      /* dragged across the face: the layer turns about the face's up axis */
+      const s=alongR>0?1:-1;
+      axisVec=F.up; level=dot3(st.p,F.up);
+      if(!level) return null;                       /* a middle row — no face turn */
+      prime=(s*level)===1;
+    }else{
+      /* dragged up or down the face: the layer turns about its right axis */
+      const s=alongU>0?1:-1;
+      axisVec=F.right; level=dot3(st.p,F.right);
+      if(!level) return null;
+      prime=(s*level)===-1;
+    }
+    const n=axisVec.map(v=>v*level);
+    const face=T.FACE_IDS.find(g=>{const N=T.FACES[g].n;
+      return N[0]===n[0]&&N[1]===n[1]&&N[2]===n[2];});
+    return face?(face+(prime?"'":'')):null;
+  }
+
+  const scene=$('#scene');
+  scene.addEventListener('pointerdown',e=>{
+    const tile=e.target.closest&&e.target.closest('.st');
+    const idx=tile?els.indexOf(tile):-1;
+    /* Swipes only claim the pointer when they start ON the cube. Starting in
+       the background always orbits, whatever the setting. */
+    if(opts.swipe&&idx>=0){ drag={mode:'turn', idx:idx, x:e.clientX, y:e.clientY}; }
+    else{ drag={mode:'orbit', x:e.clientX, y:e.clientY, ax:ax, ay:ay}; }
+    scene.setPointerCapture(e.pointerId);
+  });
+  scene.addEventListener('pointermove',e=>{
+    if(!drag||drag.mode!=='orbit') return;
+    ay=drag.ay+(e.clientX-drag.x)*.5;
+    ax=Math.max(-AX_MAX,Math.min(AX_MAX,drag.ax-(e.clientY-drag.y)*.5));
+    applyOrbit();
+  });
+  const endDrag=e=>{
+    if(drag&&drag.mode==='turn'&&e){
+      const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+      if(Math.hypot(dx,dy)>=SWIPE_MIN){
+        const m=moveForSwipe(drag.idx,dx,dy);
+        if(m) turn(m);
+        else XW.toast('The middle row does not turn on its own — try an outer one.');
+      }
+    }
+    drag=null;
+  };
+  scene.addEventListener('pointerup',endDrag);
+  scene.addEventListener('pointercancel',endDrag);
+
+  /* ---------- keyboard ----------
+     T/B/L/R/F/K for the six faces (K for "bacK", since B is taken by Bottom),
+     Shift for the other direction. Arrows orbit. */
+  const KEY_FACE={t:'U',b:'D',l:'L',r:'R',f:'F',k:'B'};
+  document.addEventListener('keydown',e=>{
+    if(XW.anyOverlayOpen()) return;
+    const tag=(e.target.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='textarea') return;
+    const f=KEY_FACE[e.key.toLowerCase()];
+    if(f){ e.preventDefault(); turn(f+(e.shiftKey?"'":'')); return; }
+    if(e.key==='ArrowLeft'){ e.preventDefault(); ay-=12; applyOrbit(); }
+    else if(e.key==='ArrowRight'){ e.preventDefault(); ay+=12; applyOrbit(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); ax=Math.max(-AX_MAX,ax-12); applyOrbit(); }
+    else if(e.key==='ArrowDown'){ e.preventDefault(); ax=Math.min(AX_MAX,ax+12); applyOrbit(); }
+    else if(e.key==='z'&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); $('#undoBtn').click(); }
+  });
+
+  /* ---------- sizing ----------
+     The cube scales to whatever the frame gives us, bounded so the stack
+     always fits without scrolling — the same rule the other two players use. */
+  /* Reserve room for the cube as it actually sits, not for the most extreme
+     angle it could ever be dragged to — sizing for the worst case cost 20% of
+     the stack's height and cropped the caption off the bottom. The tilt is
+     bounded instead (see AX_MAX), which keeps the projection inside this
+     reserve without taking anything away from the layout. */
+  function size(){
+    const mob=window.matchMedia('(max-width:860px)').matches;
+    const w=$('.stage').clientWidth||320;
+    const dock=mob?($('#mobiledock').offsetHeight||0):0;
+    const chrome=($('.topbar').offsetHeight||0)+dock+
+                 ($('#prompt').offsetHeight||0)+($('#tiles').offsetHeight||0)+
+                 ($('#pad').offsetHeight||0)+($('#caption').offsetHeight||0)+
+                 (mob?($('#ladderMob').offsetHeight||0):0)+96;
+    const availH=Math.max(150,(window.innerHeight||600)-chrome);
+    const cs=Math.max(96,Math.min(mob?230:250,Math.min(w*.62,availH/1.5)));
+    cubeEl.style.setProperty('--cs',cs+'px');
+    cubeEl.style.setProperty('--cell',(cs/3)+'px');
+    cubeEl.style.setProperty('--half',(cs/2)+'px');
+    $('#scene').style.setProperty('--scene-h',Math.round(cs*1.5)+'px');
+  }
+  addEventListener('resize',size);
+  /* mobile browsers change the visible height as their chrome slides away */
+  if(window.visualViewport) visualViewport.addEventListener('resize',size);
+
+  /* ---------- persistence ---------- */
+  function save(){
+    XW.storage.save(puzId,{
+      active:active, hist:hist.join(' '), moves:moves,
+      /* "4:3,5:8" — which words are found and at what turn count */
+      solved:LENS.filter(L=>solvedAt[L]!==undefined).map(L=>L+':'+solvedAt[L]).join(','),
+      elapsed:XW.timer.secs, completed:won,
+      filled:LENS.filter(L=>solvedAt[L]!==undefined).length, total:LENS.length
+    });
+  }
+  function load(){
+    const st=XW.storage.load(puzId); if(!st) return;
+    if(typeof st.solved==='string'&&st.solved){
+      st.solved.split(',').forEach(pair=>{
+        const [L,at]=pair.split(':').map(Number);
+        if(LENS.indexOf(L)>=0) solvedAt[L]=at||0;
+      });
+    }
+    moves=st.moves||0;
+    won=!!st.completed;
+    if(LENS.indexOf(st.active)>=0) active=st.active;
+    XW.timer.secs=st.elapsed||0;
+    /* replay the stored turns so the one cube comes back exactly as it was */
+    state=T.clone(P.start);
+    if(typeof st.hist==='string'&&st.hist){
+      hist=st.hist.split(' ').filter(Boolean);
+      hist.forEach(m=>T.applyMove(state,m));
+    }
+  }
+
+  /* ---------- wiring ---------- */
+  XW.wireChrome({
+    title:()=>'Turnspell',
+    toggleTimer:()=>{ XW.timer.stopped=!XW.timer.stopped;
+      if(!XW.timer.stopped) XW.timer._last=Date.now();
+      $('#timerPill').classList.toggle('paused',XW.timer.stopped);
+      XW.announce(XW.timer.stopped?'Timer paused':'Timer running'); },
+    menu:act=>{
+      if(act==='more') XW.goArchive();
+      else if(act==='howto') XW.openOverlay('howtoOverlay');
+      else if(act==='support') XW.openOverlay('supportOverlay');
+      else if(act==='restart'){
+        XW.dialog('Start again','Reset all three words and the clock?',()=>{
+          XW.closeOverlay($('#dialogOverlay'));
+          XW.storage.clear(puzId);
+          LENS.forEach(L=>delete solvedAt[L]); moves=0; won=false;
+          XW.timer.reset(); XW.timer.stopped=false;
+          state=T.clone(P.start); hist=[]; active=LENS[0]; paint();
+        },{ok:'Restart',cancel:'Cancel'});
+      }
+    }
+  });
+  $('#settingsBtn').onclick=()=>XW.openOverlay('settingsOverlay');
+  $('#applySettings').onclick=()=>{
+    opts.anim=$('#optAnim').checked;
+    opts.swipe=$('#optSwipe').checked;
+    $('#timerPill').classList.toggle('collapsed',!$('#optTimerShown').checked);
+    XW.closeOverlay($('#settingsOverlay'));
+    paint();
+  };
+  $('#dlgOk').onclick=()=>{ const a=XW.dlgAction; if(a) a(); else XW.closeOverlay($('#dialogOverlay')); };
+  $('#winMore').onclick=()=>XW.goArchive();
+  $('#winShare').onclick=()=>{
+    XW.share('copy',XW.shareUrl(),XW.shareText('Turnspell'));
+    XW.emit('share_clicked',{target:'copy'});
+  };
+
+  $('#ticketNo').textContent=(function(){
+    let h=0; for(let i=0;i<puzId.length;i++) h=(Math.imul(h,31)+puzId.charCodeAt(i))>>>0;
+    const hex=n=>((n>>>0).toString(16)).slice(-7).padStart(7,'0');
+    return 'lat-'+hex(h)+'-'+hex(h^0x9e3779b9);
+  })();
+
+  /* ---------- boot ---------- */
+  buildCube();
+  state=T.clone(P.start);
+  load();
+  applyOrbit();
+  paint();
+  size();
+  setTimeout(size,80);
+  XW.timer.onTick=s=>{ $('#timer').textContent=XW.fmtTime(s); };
+  XW.timer.start(XW.timer.secs);
+  if(won) XW.timer.stop();
+  XW.emit('game_start',{puzzleId:puzId,engine:'turnspell'});
+  if(substituted) setTimeout(()=>XW.toast('“'+substituted+'” is not available yet — showing today'),400);
+  setInterval(save,10000);
+})();
+</script>
+</body>
+</html>

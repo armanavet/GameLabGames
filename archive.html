@@ -81,7 +81,9 @@
   const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):'';
   /* a fixed-level game already says what it is in its own name */
   const showLvl=(G.generated&&G.generated.byDifficulty)?LVL0:'';
-  document.getElementById('aTitle').textContent=G.label+(showLvl?' · '+cap(showLvl):'');
+  /* a game still being tried out says so wherever it is named */
+  const tagSuffix=G.tag?' · '+G.tag:'';
+  document.getElementById('aTitle').textContent=G.label+(showLvl?' · '+cap(showLvl):'')+tagSuffix;
   document.getElementById('aSub').textContent=G.archiveBlurb||G.blurb||'';
   document.title=G.label+(showLvl?' · '+cap(showLvl):'');
   XW.gameId=GID;

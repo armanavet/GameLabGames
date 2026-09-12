@@ -36,7 +36,7 @@
    both sides. Painting it on the page and on #app with the same top-anchored
    gradient makes it span the full width — --bar-h is measured in core.js, and
    the fallback covers the moment before that runs. */
-html,body{margin:0;padding:0;height:100%;font-family:var(--font);color:var(--ink);
+html,body{margin:0;padding:0;height:100%;height:100dvh;font-family:var(--font);color:var(--ink);
   background:linear-gradient(180deg,var(--bar-bg,#f3f3f3) 0,var(--bar-bg,#f3f3f3) var(--bar-h,60px),#fff var(--bar-h,60px)) no-repeat}
 
 /* Figma card is 644 wide; we keep its proportions and scale up to --app-max */

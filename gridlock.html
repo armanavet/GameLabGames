@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Gridlock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<style>
+  /* gridlock-only styles — everything shared lives in core.css. The board is a
+     sliding letter grid, but the chrome around it is the same toolbar, rail,
+     overlays, dock and caption the other games use. */
+  #app{max-width:1040px;--amber2:#bf8412;--brass:#a8763b}
+  .main{display:grid;grid-template-columns:1fr 330px;gap:26px;padding:16px 26px 10px;
+        flex:1 1 auto;min-height:0}
+  .stage{min-width:0;display:flex;flex-direction:column;align-items:center;gap:12px}
+
+  /* ---------- the board ----------
+     A flat grid: every row is drawn at full size, so nothing is foreshortened
+     out of legibility. Cells are placed by transform rather than by layout,
+     which is what lets a whole line slide under the finger and then settle
+     without anything reflowing. */
+  .boardwrap{display:flex;flex-direction:column;align-items:center;gap:5px;
+             user-select:none;-webkit-user-select:none;touch-action:none}
+  .midrow{display:flex;align-items:center;gap:5px}
+  .board{position:relative;overflow:hidden;
+         width:calc(var(--cw) * 7);height:calc(var(--chh) * 5)}
+
+  .cell{position:absolute;left:0;top:0;width:var(--cw);height:var(--chh);
+        padding:var(--pad);box-sizing:border-box;
+        transform:translate(calc(var(--bx) + var(--dx,0px)), calc(var(--by) + var(--dy,0px)));
+        transition:transform .17s cubic-bezier(.3,.05,.2,1)}
+  .cell.nofx{transition:none}
+  .cell span{display:flex;align-items:center;justify-content:center;width:100%;height:100%;
+             background:#fff;border:1px solid #d8d8d8;border-radius:6px;
+             font-weight:700;font-size:calc(var(--chh) * .46);line-height:1;
+             color:#6f6f6f;transition:background .18s,border-color .18s,color .18s}
+  /* the window: the middle row's inner five cells, banded in brass */
+  .cell.win span{border-color:var(--brass);border-width:2px;color:var(--ink3)}
+  .cell.exact span{background:var(--ok);border-color:#0a7d4c;color:#fff}
+  .cell.moved span{background:var(--amber2);border-color:#96670c;color:#fff}
+  /* Ghosts sit just off each end of every line carrying the letter that wraps
+     in. They are clipped away at rest and only ever seen mid-slide — without
+     them a sliding line would show a gap where the wrap should be. */
+  .cell.ghost span{opacity:.95}
+
+  .colarrows{display:flex;gap:0}
+  .colarrows button{width:var(--cw);display:flex;align-items:center;justify-content:center}
+  .rowarrows{display:flex;flex-direction:column;gap:0}
+  .rowarrows button{height:var(--chh);display:flex;align-items:center;justify-content:center}
+  .abtn{border:none;background:none;color:#b0b0b0;font-size:11px;cursor:pointer;
+        padding:0;font-family:var(--font);transition:color .12s}
+  .abtn:hover{color:var(--ink)}
+  .abtn:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:4px}
+
+  /* ---------- guess row + submit ---------- */
+  .btn.sub{height:38px;padding:0 22px}
+  .hintline{font-size:14px;color:#8a8a8a;text-align:center;margin:0;min-height:2.6em;line-height:1.3}
+  .hintline b{color:var(--ink)}
+  .caption{font-size:12.5px;color:#8a8a8a;text-align:center;margin:0}
+
+  /* ---------- history + alphabet ---------- */
+  .rail{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .rbox{border:1px solid #e6e6e6;border-radius:var(--panel-radius);background:#fff;padding:16px 14px}
+  .railhead{font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+            color:#8a8a8a;text-align:center;margin-bottom:12px}
+  .hist{display:flex;flex-direction:column;gap:7px}
+  .hrow{display:flex;gap:6px;justify-content:center}
+  .hrow i{width:44px;height:48px;border-radius:6px;background:#f2f2f2;
+          border:1px solid #e0e0e0;display:flex;align-items:center;justify-content:center;
+          font-size:22px;font-weight:700;font-style:normal;color:var(--ink3)}
+  .hrow i.exact{background:var(--ok);border-color:#0a7d4c;color:#fff}
+  .hrow i.moved{background:var(--amber2);border-color:#96670c;color:#fff}
+  .hrow.empty i{background:#fafafa;border-style:dashed;border-color:#e4e4e4}
+  .alpha{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}
+  .alpha b{width:30px;height:34px;border-radius:4px;background:#f2f2f2;color:#6f6f6f;
+           display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+  .alpha b.exact{background:var(--ok);color:#fff}
+  .alpha b.moved{background:var(--amber2);color:#fff}
+  .alpha b.absent{background:#dcdcdc;color:#9a9a9a}
+
+  /* ---------- mobile ---------- */
+  #mobiledock{display:none}
+  @media(max-width:860px){
+    .main{grid-template-columns:1fr;gap:8px;padding:6px 10px 2px}
+    .rail{display:none}
+    /* The guess history is not optional. Without it you have to remember six
+       marked guesses, which is the whole game — it was missing here, and that
+       made the phone version far harder than the desktop one. It sits beside
+       the alphabet so both fit in the dock. */
+    #mobiledock{display:flex;gap:12px;align-items:flex-start;justify-content:center;
+                padding:8px 10px 12px;flex:none;border-top:1px solid #ececec;background:#fff}
+    #mobiledock .hist{gap:3px}
+    #mobiledock .alpha{max-width:132px}
+    .hrow{gap:3px}
+    .hrow i{width:21px;height:23px;font-size:11.5px;border-radius:3px}
+    .alpha b{width:19px;height:21px;font-size:10px}
+  }
+  @media(prefers-reduced-motion:reduce){ .cell{transition:none} }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="main">
+    <div class="stage">
+      <div class="boardwrap" id="boardwrap">
+        <div class="colarrows" id="colUp"></div>
+        <div class="midrow">
+          <div class="rowarrows" id="rowLeft"></div>
+          <div class="board" id="board"></div>
+          <div class="rowarrows" id="rowRight"></div>
+        </div>
+        <div class="colarrows" id="colDown"></div>
+      </div>
+      <p class="hintline" id="hintline">&mdash;</p>
+      <div><button class="btn pri sub" type="button" id="submitBtn">Submit guess</button></div>
+      <p class="caption" id="caption"></p>
+    </div>
+
+    <div class="rail">
+      <div class="rbox">
+        <div class="railhead">Guesses</div>
+        <div class="hist" id="hist"></div>
+      </div>
+      <div class="rbox">
+        <div class="railhead">Letters</div>
+        <div class="alpha" id="alpha"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mobiledock">
+    <div class="hist" id="histMob"></div>
+    <div class="alpha" id="alphaMob"></div>
+  </div>
+
+  <!-- Settings -->
+  <div class="overlay" id="settingsOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-set">
+    <div class="mhead"><h2 id="dlgH-set">Settings</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <div class="sgroup">
+        <div class="srow"><div class="lab"><b>Show timer</b><span>Shows the timer while playing this puzzle</span></div>
+          <label class="sw"><input type="checkbox" id="optTimerShown" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Drag to slide</b><span>Drag a row or a column to keep sliding it as far as you like, instead of using the arrows</span></div>
+          <label class="sw"><input type="checkbox" id="optDrag" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Animate slides</b><span>Turn this off if the board feels slow on your device</span></div>
+          <label class="sw"><input type="checkbox" id="optAnim" checked/><i></i></label></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="applySettings">Apply</button></div>
+  </div></div>
+
+  <!-- How to play -->
+  <div class="overlay" id="howtoOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-howto">
+    <div class="mhead"><h2 id="dlgH-howto">How To Play</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>A five-letter word is hidden. Spell your guess in the <b>brass window</b> across the middle of the board, then submit it.</p>
+      <p><b>Slide a column</b> up or down, or <b>slide a row</b> left or right. Everything wraps around, and the spare slot at each end of the window is what you slide letters through.</p>
+      <p>A column only holds the letters it happens to hold, so sliding rows is how you fetch a letter it does not have.</p>
+      <p>Submitting marks your guess the way Wordle does: <b class="lg">green</b> for the right letter in the right place, <b class="la">amber</b> for a letter in the word but somewhere else, grey for a letter that is not in it at all.</p>
+      <p>You get <b>six guesses</b>. Sliding is free &mdash; only submitting costs you one.</p>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" data-close>Got it</button></div>
+  </div></div>
+
+  <!-- Support -->
+  <div class="overlay" id="supportOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-support">
+    <div class="mhead"><h2 id="dlgH-support">Support</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>Something not working? Quote the ticket number below and we can look up this exact puzzle.</p>
+      <p><b>Ticket number: <span id="ticketNo">&mdash;</span></b></p>
+      <p id="copyrightLine">&copy; 2026 Tribune Content Agency, LLC</p>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" data-close>Close</button></div>
+  </div></div>
+
+  <!-- Win / lose -->
+  <div class="overlay" id="winOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-win">
+    <div class="mhead"><h2 id="dlgH-win">Congratulations!</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center">
+      <p id="winLine">&mdash;</p>
+      <div class="stats">
+        <div class="stat"><span>Guesses</span><b id="winGuesses">0</b></div>
+        <div class="stat"><span>Time</span><b id="winTime">&mdash;</b></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="winShare">Share</button></div>
+    <p class="winnext"><button type="button" id="winMore">More puzzles</button></p>
+  </div></div>
+
+  <div class="overlay" id="dialogOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="mhead"><h2 id="dlgTitle">&mdash;</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center"><p id="dlgBody">&mdash;</p></div>
+    <div class="mbtns">
+      <button class="btn sec" type="button" id="dlgClose">Close</button>
+      <button class="btn pri" type="button" id="dlgOk">Ok</button>
+    </div>
+  </div></div>
+
+  <div id="menuScrim"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div id="live" class="sr-only" role="status" aria-live="polite"></div>
+</div>
+
+<script src="games.js"></script>
+<script src="core.js"></script>
+<script src="words-5.js"></script>
+<script src="gridlock-engine.js"></script>
+<script>
+(function(){
+  'use strict';
+  const $=XW.$, S=window.GRIDLOCK;
+
+  (function(){
+    const want=new URLSearchParams(location.search).get('game')||'gridlock';
+    const g=window.GAMES&&window.GAMES[want];
+    XW.gameId=(g&&g.live&&g.player==='gridlock.html')?want:'gridlock';
+  })();
+
+  /* ---------- which puzzle ---------- */
+  const params=new URLSearchParams(location.search);
+  const today=S.todayISO();
+  const parsed=S.parseId(params.get('p')||'');
+  const asked=(parsed&&parsed.date)||today;
+  const iso=(asked>today)?today:asked;
+  const substituted=(asked>today)?asked:null;
+
+  const P=S.forDate(iso), puzId=P.id;
+  XW.puzzleId=puzId;
+  document.title='Gridlock — '+iso;
+
+  const DOW=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  (function(){
+    const d=new Date(iso+'T00:00:00');
+    const G=(window.GAMES&&window.GAMES[XW.gameId])||{};
+    $('#caption').textContent='L. A. Times '+(G.label||'Gridlock')+' · '+
+      DOW[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear()+(G.tag?' · '+G.tag:'');
+  })();
+
+  /* ---------- state ---------- */
+  let grid=S.clone(P.start), guesses=[], won=false, lost=false;
+  const opts={anim:true, drag:true};
+
+  /* ---------- chrome ---------- */
+  const app=document.getElementById('app');
+  XW.mountToolbar(app,{
+    left:['timer',{id:'tries',kind:'pill',icon:'i-task-square',size:15,text:'0/6',label:'Guesses used'}],
+    right:['settings','menu'],
+    menuItems:[['more','More puzzles'],['howto','How to play'],['restart','Start again'],
+               ['share','Share'],['support','Support']]
+  });
+  app.insertBefore($('.topbar'),$('.main'));
+
+  /* ---------- build ----------
+     Real cells, plus a ghost off each end of every line. A ghost carries the
+     letter that will wrap in, so a line sliding under the finger never shows
+     a hole where the wrap belongs. */
+  const boardEl=$('#board'), cellEls=[], ghost={colTop:[],colBot:[],rowL:[],rowR:[]};
+  const mkCell=(bx,by,cls)=>{
+    const d=document.createElement('div');
+    d.className='cell'+(cls?' '+cls:'');
+    d.style.setProperty('--bx',bx); d.style.setProperty('--by',by);
+    d.appendChild(document.createElement('span'));
+    boardEl.appendChild(d); return d;
+  };
+  const px=(mult,varName)=>'calc(var('+varName+') * '+mult+')';
+
+  function build(){
+    boardEl.innerHTML=''; cellEls.length=0;
+    ghost.colTop.length=ghost.colBot.length=ghost.rowL.length=ghost.rowR.length=0;
+    for(let r=0;r<S.ROWS;r++) for(let c=0;c<S.COLS;c++)
+      cellEls[S.at(r,c)]=mkCell(px(c,'--cw'),px(r,'--chh'));
+    for(let c=0;c<S.COLS;c++){
+      ghost.colTop[c]=mkCell(px(c,'--cw'),px(-1,'--chh'),'ghost');
+      ghost.colBot[c]=mkCell(px(c,'--cw'),px(S.ROWS,'--chh'),'ghost');
+    }
+    for(let r=0;r<S.ROWS;r++){
+      ghost.rowL[r]=mkCell(px(-1,'--cw'),px(r,'--chh'),'ghost');
+      ghost.rowR[r]=mkCell(px(S.COLS,'--cw'),px(r,'--chh'),'ghost');
+    }
+
+    /* arrows sit against the line they move, so position says which is which */
+    const arrows=(host,n,glyph,make)=>{
+      host.innerHTML='';
+      for(let i=0;i<n;i++){
+        const b=document.createElement('button');
+        b.type='button'; b.className='abtn'; b.textContent=glyph;
+        make(b,i); host.appendChild(b);
+      }
+    };
+    arrows($('#colUp'),S.COLS,'▲',(b,c)=>{
+      b.setAttribute('aria-label','Slide column '+(c+1)+' up');
+      b.onclick=()=>move(['c',c,-1]); });
+    arrows($('#colDown'),S.COLS,'▼',(b,c)=>{
+      b.setAttribute('aria-label','Slide column '+(c+1)+' down');
+      b.onclick=()=>move(['c',c,1]); });
+    arrows($('#rowLeft'),S.ROWS,'◀',(b,r)=>{
+      b.setAttribute('aria-label','Slide row '+(r+1)+' left');
+      b.onclick=()=>move(['r',r,-1]); });
+    arrows($('#rowRight'),S.ROWS,'▶',(b,r)=>{
+      b.setAttribute('aria-label','Slide row '+(r+1)+' right');
+      b.onclick=()=>move(['r',r,1]); });
+  }
+
+  /* ---------- sizing ---------- */
+  function size(){
+    const mob=window.matchMedia('(max-width:860px)').matches;
+    const avail=Math.min($('.stage').clientWidth||340, mob?400:560);
+    const cw=Math.max(30,Math.min(mob?46:66,(avail-44)/S.COLS));
+    const wrap=$('#boardwrap');
+    wrap.style.setProperty('--cw',cw+'px');
+    wrap.style.setProperty('--chh',cw+'px');
+    wrap.style.setProperty('--pad',Math.max(2,Math.round(cw*0.06))+'px');
+  }
+  addEventListener('resize',size);
+  if(window.visualViewport) visualViewport.addEventListener('resize',size);
+
+  /* ---------- painting ---------- */
+  function paint(){
+    const cur=S.windowWord(grid);
+    for(let r=0;r<S.ROWS;r++) for(let c=0;c<S.COLS;c++){
+      const el=cellEls[S.at(r,c)];
+      el.firstChild.textContent=grid[S.at(r,c)];
+      const inWord=r===S.WIN_ROW&&c>=S.WIN_COL&&c<S.WIN_COL+S.LEN;
+      el.classList.toggle('win',inWord);
+      el.classList.remove('exact','moved');
+      el.setAttribute('aria-label','Row '+(r+1)+' column '+(c+1)+', '+grid[S.at(r,c)]);
+    }
+    /* ghosts mirror whatever is about to wrap in from the far side */
+    for(let c=0;c<S.COLS;c++){
+      ghost.colTop[c].firstChild.textContent=grid[S.at(S.ROWS-1,c)];
+      ghost.colBot[c].firstChild.textContent=grid[S.at(0,c)];
+    }
+    for(let r=0;r<S.ROWS;r++){
+      ghost.rowL[r].firstChild.textContent=grid[S.at(r,S.COLS-1)];
+      ghost.rowR[r].firstChild.textContent=grid[S.at(r,0)];
+    }
+    XW.setChip('tries',guesses.length+'/'+S.ATTEMPTS);
+    const valid=S.isWord(cur);
+    $('#submitBtn').disabled=won||lost||!valid;
+    $('#hintline').innerHTML = won  ? 'Solved in <b>'+guesses.length+'</b> '+(guesses.length===1?'guess':'guesses')+'.'
+                             : lost ? 'Out of guesses. The word was <b>'+P.target+'</b>.'
+                             : valid ? 'Window reads <b>'+cur+'</b> &mdash; submit it, or keep sliding.'
+                                     : '<b>'+cur+'</b> is not a word yet. Slide letters into the window.';
+    paintHistory(); paintAlpha(); save();
+  }
+
+  /* Both histories, the rail's and the dock's, from one place — a phone needs
+     the record of its guesses every bit as much as a desktop does. */
+  function paintHistory(){
+    [$('#hist'),$('#histMob')].forEach(host=>{
+      if(!host) return;
+      host.innerHTML='';
+      for(let i=0;i<S.ATTEMPTS;i++){
+        const row=document.createElement('div');
+        row.className='hrow'+(i<guesses.length?'':' empty');
+        const g=guesses[i]||'', m=g?S.mark(g,P.target):null;
+        for(let k=0;k<S.LEN;k++){
+          const t=document.createElement('i');
+          if(g){ t.textContent=g[k]; if(m[k]!=='absent') t.className=m[k]; }
+          row.appendChild(t);
+        }
+        host.appendChild(row);
+      }
+    });
+  }
+  function paintAlpha(){
+    const st=S.letterStatus(guesses,P.target);
+    [$('#alpha'),$('#alphaMob')].forEach(host=>{
+      if(!host) return;
+      host.innerHTML='';
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(ch=>{
+        const b=document.createElement('b');
+        b.textContent=ch;
+        if(st[ch]) b.className=st[ch];
+        b.setAttribute('aria-label',ch+(st[ch]?', '+st[ch]:''));
+        host.appendChild(b);
+      });
+    });
+  }
+
+  /* ---------- sliding ----------
+     One place decides which cells belong to a line and how far they are
+     offset, so the buttons and the drag drive exactly the same motion. */
+  function lineCells(kind,idx){
+    const out=[];
+    if(kind==='c'){
+      for(let r=0;r<S.ROWS;r++) out.push(cellEls[S.at(r,idx)]);
+      out.push(ghost.colTop[idx],ghost.colBot[idx]);
+    }else{
+      for(let c=0;c<S.COLS;c++) out.push(cellEls[S.at(idx,c)]);
+      out.push(ghost.rowL[idx],ghost.rowR[idx]);
+    }
+    return out;
+  }
+  function setOffset(kind,idx,pxVal,instant){
+    const prop=kind==='c'?'--dy':'--dx';
+    lineCells(kind,idx).forEach(el=>{
+      el.classList.toggle('nofx',!!instant);
+      el.style.setProperty(prop,pxVal+'px');
+    });
+  }
+  function clearOffset(kind,idx){
+    const prop=kind==='c'?'--dy':'--dx';
+    lineCells(kind,idx).forEach(el=>el.style.setProperty(prop,'0px'));
+  }
+  const stepPx=kind=>parseFloat(getComputedStyle($('#boardwrap'))
+                      .getPropertyValue(kind==='c'?'--chh':'--cw'))||40;
+
+  function applyOne(m){ S.applyMove(grid,m); paint(); }
+
+  let busy=false;
+  function move(m){
+    if(busy||won||lost) return;
+    const [kind,idx,dir]=m;
+    if(!opts.anim||window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      applyOne(m); return;
+    }
+    busy=true;
+    const step=stepPx(kind);
+    /* slide the line the way it is about to move, then re-deal the letters
+       and drop the offset with transitions off, so the two read as one */
+    setOffset(kind,idx,dir*step,false);
+    setTimeout(()=>{
+      applyOne(m);
+      setOffset(kind,idx,0,true);
+      lineCells(kind,idx).forEach(el=>void el.offsetWidth);
+      lineCells(kind,idx).forEach(el=>el.classList.remove('nofx'));
+      busy=false;
+    },180);
+  }
+
+  /* ---------- drag ----------
+     The line follows the finger, committing a whole step each time one passes
+     so the leftover offset never exceeds a single cell — which is all the
+     ghosts can cover. Release snaps to whichever cell it is nearest. */
+  let drag=null;
+  const LOCK=7;
+  boardEl.addEventListener('pointerdown',e=>{
+    if(!opts.drag||won||lost||busy) return;
+    const cell=e.target.closest&&e.target.closest('.cell');
+    if(!cell||cell.classList.contains('ghost')) return;
+    const i=cellEls.indexOf(cell);
+    if(i<0) return;
+    drag={ x:e.clientX, y:e.clientY, r:Math.floor(i/S.COLS), c:i%S.COLS,
+           kind:null, idx:0, base:0 };
+    boardEl.setPointerCapture(e.pointerId);
+  });
+  boardEl.addEventListener('pointermove',e=>{
+    if(!drag||won||lost) return;
+    const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+    if(!drag.kind){
+      if(Math.max(Math.abs(dx),Math.abs(dy))<LOCK) return;
+      drag.kind=Math.abs(dy)>Math.abs(dx)?'c':'r';
+      drag.idx=drag.kind==='c'?drag.c:drag.r;
+      lineCells(drag.kind,drag.idx).forEach(el=>el.classList.add('nofx'));
+    }
+    const d=drag.kind==='c'?dy:dx;
+    const step=stepPx(drag.kind);
+    while(d-drag.base>=step){ drag.base+=step; applyOne([drag.kind,drag.idx,1]); }
+    while(d-drag.base<=-step){ drag.base-=step; applyOne([drag.kind,drag.idx,-1]); }
+    setOffset(drag.kind,drag.idx,d-drag.base,true);
+  });
+  const endDrag=()=>{
+    if(drag&&drag.kind){
+      const {kind,idx}=drag;
+      const step=stepPx(kind);
+      const prop=kind==='c'?'--dy':'--dx';
+      const off=parseFloat(lineCells(kind,idx)[0].style.getPropertyValue(prop))||0;
+      if(Math.abs(off)>step/2){
+        applyOne([kind,idx,off>0?1:-1]);
+        setOffset(kind,idx,off>0?off-step:off+step,true);
+        lineCells(kind,idx).forEach(el=>void el.offsetWidth);
+      }
+      lineCells(kind,idx).forEach(el=>el.classList.remove('nofx'));
+      clearOffset(kind,idx);
+    }
+    drag=null;
+  };
+  boardEl.addEventListener('pointerup',endDrag);
+  boardEl.addEventListener('pointercancel',endDrag);
+
+  /* ---------- submitting ---------- */
+  function submit(){
+    if(won||lost) return;
+    const g=S.windowWord(grid);
+    if(!S.isWord(g)){ XW.toast('“'+g+'” is not in the word list.'); return; }
+    if(guesses.indexOf(g)>=0){ XW.toast('You have already tried “'+g+'”.'); return; }
+    guesses.push(g);
+    XW.emit('assist_used',{action:'guess',n:guesses.length});
+    const m=S.mark(g,P.target);
+    for(let k=0;k<S.LEN;k++){
+      const el=cellEls[S.at(S.WIN_ROW,S.WIN_COL+k)];
+      if(el&&m[k]!=='absent') el.classList.add(m[k]);
+    }
+    if(g===P.target){ won=true; finish(true); }
+    else if(guesses.length>=S.ATTEMPTS){ lost=true; finish(false); }
+    else { XW.announce('Guess '+guesses.length+' of '+S.ATTEMPTS+' submitted.'); paintHistory(); paintAlpha(); save(); }
+    XW.setChip('tries',guesses.length+'/'+S.ATTEMPTS);
+    $('#submitBtn').disabled=true;
+    setTimeout(paint,900);
+  }
+  function finish(good){
+    XW.timer.stop();
+    $('#dlgH-win').textContent=good?'Congratulations!':'Out of guesses';
+    $('#winLine').textContent=good?'You found “'+P.target+'”.':'The word was “'+P.target+'”.';
+    $('#winGuesses').textContent=String(guesses.length);
+    $('#winTime').textContent=XW.fmtTime(XW.timer.secs);
+    setTimeout(()=>XW.openOverlay('winOverlay'),700);
+    XW.emit('game_complete',{puzzleId:puzId,seconds:XW.timer.secs,guesses:guesses.length,solved:good});
+    XW.announce(good?'Solved.':'Out of guesses. The word was '+P.target+'.');
+  }
+  $('#submitBtn').onclick=submit;
+  document.addEventListener('keydown',e=>{
+    if(XW.anyOverlayOpen()) return;
+    const tag=(e.target.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='textarea') return;
+    if(e.key==='Enter'){ e.preventDefault(); submit(); }
+  });
+
+  /* ---------- persistence ---------- */
+  function save(){
+    XW.storage.save(puzId,{
+      grid:grid.join(''), guesses:guesses.join(' '),
+      elapsed:XW.timer.secs, completed:won, lost:lost,
+      filled:won?S.ATTEMPTS:guesses.length, total:S.ATTEMPTS
+    });
+  }
+  function load(){
+    const st=XW.storage.load(puzId); if(!st) return;
+    /* A save from a different shape of puzzle is not a save. Reading half of
+       it leaves a board you cannot touch because the game believes it is
+       already finished. Take all of it or none of it. */
+    const gs=(typeof st.guesses==='string'&&st.guesses)?st.guesses.split(' ').filter(Boolean):[];
+    if(typeof st.grid!=='string'||st.grid.length!==S.CELLS||gs.some(w=>w.length!==S.LEN)){
+      XW.storage.clear(puzId); return;
+    }
+    grid=st.grid.split(''); guesses=gs;
+    won=!!st.completed; lost=!!st.lost;
+    XW.timer.secs=st.elapsed||0;
+  }
+
+  /* ---------- wiring ---------- */
+  XW.wireChrome({
+    title:()=>'Gridlock',
+    toggleTimer:()=>{ XW.timer.stopped=!XW.timer.stopped;
+      if(!XW.timer.stopped) XW.timer._last=Date.now();
+      $('#timerPill').classList.toggle('paused',XW.timer.stopped);
+      XW.announce(XW.timer.stopped?'Timer paused':'Timer running'); },
+    menu:act=>{
+      if(act==='more') XW.goArchive();
+      else if(act==='howto') XW.openOverlay('howtoOverlay');
+      else if(act==='support') XW.openOverlay('supportOverlay');
+      else if(act==='restart'){
+        XW.dialog('Start again','Clear your guesses and reset the board?',()=>{
+          XW.closeOverlay($('#dialogOverlay'));
+          XW.storage.clear(puzId);
+          grid=S.clone(P.start); guesses=[]; won=false; lost=false;
+          XW.timer.reset(); XW.timer.stopped=false;
+          paint();
+        },{ok:'Restart',cancel:'Cancel'});
+      }
+    }
+  });
+  $('#settingsBtn').onclick=()=>XW.openOverlay('settingsOverlay');
+  $('#applySettings').onclick=()=>{
+    opts.anim=$('#optAnim').checked;
+    opts.drag=$('#optDrag').checked;
+    $('#timerPill').classList.toggle('collapsed',!$('#optTimerShown').checked);
+    XW.closeOverlay($('#settingsOverlay'));
+    paint();
+  };
+  $('#dlgOk').onclick=()=>{ const a=XW.dlgAction; if(a) a(); else XW.closeOverlay($('#dialogOverlay')); };
+  $('#winMore').onclick=()=>XW.goArchive();
+  $('#winShare').onclick=()=>{
+    XW.share('copy',XW.shareUrl(),XW.shareText('Gridlock'));
+    XW.emit('share_clicked',{target:'copy'});
+  };
+  $('#ticketNo').textContent=(function(){
+    let h=0; for(let i=0;i<puzId.length;i++) h=(Math.imul(h,31)+puzId.charCodeAt(i))>>>0;
+    const hex=n=>((n>>>0).toString(16)).slice(-7).padStart(7,'0');
+    return 'lat-'+hex(h)+'-'+hex(h^0x9e3779b9);
+  })();
+
+  /* ---------- boot ---------- */
+  build();
+  load();
+  size();
+  paint();
+  setTimeout(size,60);
+  XW.timer.onTick=s=>{ $('#timer').textContent=XW.fmtTime(s); };
+  XW.timer.start(XW.timer.secs);
+  if(won||lost) XW.timer.stop();
+  XW.emit('game_start',{puzzleId:puzId,engine:'gridlock'});
+  if(substituted) setTimeout(()=>XW.toast('“'+substituted+'” is not available yet — showing today'),400);
+  setInterval(save,10000);
+})();
+</script>
+</body>
+</html>

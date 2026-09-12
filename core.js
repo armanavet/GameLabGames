@@ -146,9 +146,18 @@ window.XW = (function () {
      throttled to ~1/min in background tabs, which silently under-counts and
      corrupts any time-based scoring. */
   const timer = {
-    secs: 0, stopped: false, _last: 0, _tick: null, onTick: null,
+    /* _last must be a real instant from the very first moment, not 0. The
+       visibilitychange listener below is live as soon as this file runs, so a
+       tab that changes visibility before a game calls start() would otherwise
+       measure its delta against the epoch and add about 1.79 billion seconds
+       to the clock — which the game then restores as if it were real. */
+    secs: 0, stopped: false, _last: Date.now(), _tick: null, onTick: null,
     start(from) {
-      timer.secs = from || 0; timer.stopped = false; timer._last = Date.now();
+      /* A resumed time past a day is a corrupted save, not a long solve.
+         Clamping here heals any clock already poisoned in storage, in every
+         game, without each one having to check. */
+      timer.secs = (typeof from === 'number' && from > 0 && from < 86400) ? from : 0;
+      timer.stopped = false; timer._last = Date.now();
       /* Paint the restored value now. _advance only fires onTick once a whole
          second has passed, so a resumed solve would read 00:00 until the next
          tick — and a puzzle reopened after it was completed stops the timer
@@ -162,7 +171,9 @@ window.XW = (function () {
       const now = Date.now();
       if (!timer.stopped) {
         const d = Math.round((now - timer._last) / 1000);
-        if (d > 0) { timer.secs += d; if (timer.onTick) timer.onTick(timer.secs); }
+        /* An hour in one tick is a clock that went wrong, not a long think —
+           a suspended laptop or a bad _last. Re-anchor rather than bank it. */
+        if (d > 0 && d < 3600) { timer.secs += d; if (timer.onTick) timer.onTick(timer.secs); }
       }
       timer._last = now;
     },
