@@ -7,7 +7,7 @@
 <title>Sudoku</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&family=Roboto:wght@400;700&family=Inter:wght@500;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&family=Roboto:wght@400;700&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="core.css">
 <style>
   /* sudoku-only styles — everything shared lives in core.css */
@@ -21,47 +21,115 @@
   /* ---------- board ----------
      One square container; cells size themselves off it so the grid stays
      square at any width without measuring anything in JS. */
+  /* The frame has no heavy outer rule: sudoku-grid-outer is a 9px-rounded
+     white box and the board's edge is just the outermost cells' own hairline.
+     Two weights, not three — #cccccc between cells, #474747 between boxes. */
   .board{display:grid;grid-template-columns:repeat(var(--n,9),1fr);
          grid-template-rows:repeat(var(--n,9),1fr);
          width:min(100%,var(--board-max,470px));aspect-ratio:1;
-         border:2.5px solid var(--grid);background:var(--grid);gap:0}
-  /* Three weights of rule, so the structure reads before the numbers do:
-     the outer frame heaviest, the box separators next, the cell rules
-     lightest — but dark enough to actually see at phone sizes. */
-  .sc{position:relative;background:#fff;border:.5px solid #808080;
+         border:.5px solid #cccccc;background:#cccccc;gap:0;
+         border-radius:9px;overflow:hidden}
+  /* Each cell is its own type container, so the digit can be a fraction of the
+     cell rather than a guess at the viewport. Figma sets 24px in a 44.44 cell
+     and 21.6px in a 40 cell — the same 0.54 both times, which is what the old
+     vw-based clamp could not hold: on a 390px phone it resolved to ~13px. */
+  .sc{position:relative;background:#fff;border:.5px solid #cccccc;overflow:hidden;
       display:flex;align-items:center;justify-content:center;cursor:pointer;
-      font-weight:600;font-size:clamp(15px,3.4vw,26px);color:var(--ink3);
+      font-weight:600;font-size:clamp(15px,3.4vw,26px);color:#333333;
       user-select:none;-webkit-tap-highlight-color:transparent}
-  /* the 3x3 boxes are drawn with heavier interior rules, not by shading */
-  .sc.br{border-right-width:1.5px;border-right-color:var(--grid)}
-  .sc.bb{border-bottom-width:1.5px;border-bottom-color:var(--grid)}
+  /* The sizes go on the CONTENTS, not on .sc: a container query unit resolves
+     against the nearest ANCESTOR container, so 54cqw written on .sc itself
+     would skip past the cell and land on the viewport. */
+  @supports (container-type:inline-size){
+    .sc{container-type:inline-size}
+    /* 57 rather than the design's 54: a container query unit measures the
+       CONTENT box, so the cell's 1-2px of rules have to be paid back here for
+       the glyph to come out at 0.54 of the cell the reader actually sees. */
+    .sc .v{font-size:57cqw}
+  }
+  /* the boxes are drawn with heavier interior rules, not by shading; .5px from
+     the neighbour plus 1.5px here is the design's 2px */
+  .sc.br{border-right-width:1.5px;border-right-color:#474747}
+  .sc.bb{border-bottom-width:1.5px;border-bottom-color:#474747}
 
   /* Figma: a given clue sits on grey, anything the reader typed sits on white.
      That is the only thing distinguishing them — weight and colour match. */
-  .sc.given{background:#efefef}       /* cell-0-2 etc. */
+  /* A given and an entry are the SAME number: same size, same weight, same
+     colour. Only the ground behind them differs — which is why that ground is
+     a step darker than the frame's #efefef. At #efefef against white it was
+     doing a job it was too faint to do. */
+  .sc.given{background:#e4e4e4}
   /* The selected digit's twins and the selected cell's group share one tint,
      so "related to what I have selected" reads as a single idea rather than
      two competing washes. Declared together so the two cannot drift apart. */
   .sc.peer,
-  .sc.same{background:#fdf0b4}                    /* every cell holding the selected digit */
+  .sc.same{background:#fcefa4}                    /* every cell holding the selected digit */
   .sc.sel{background:#0fafff;color:#fff}          /* cell-0-0 in SETTINGS 1 */
   .sc.sel.given{background:#0fafff}
   /* "Indicates conflicting entries with a dot in the top-right corner of the
      cell. This doesn't check that the entries are actually correct." */
   .sc.conflict::before{content:'';position:absolute;top:4px;right:4px;width:6px;height:6px;
-        border-radius:50%;background:var(--wrong)}
-  /* Progressive hints: stage 1 tints the unit to look in, stage 2 rings the
-     cell. Both sit under .sel so the selected cell still reads as selected. */
-  .sc.hintunit{background:#dff0fd}
-  .sc.hintcell{box-shadow:inset 0 0 0 3px #22a6f2}
+        border-radius:50%;background:#e90000}
+
+  /* ---------- hint spotlight (HINT 1 / HINT 2) ----------
+     The frames dim the whole player below the toolbar — board, rail, pad and
+     caption alike — and punch the cells worth looking at back out of it. The
+     sheet is #2b2b2b at 73%, and translucent rather than opaque: the numbers
+     underneath stay faintly readable, which is what keeps it a spotlight and
+     not a blindfold. (Sampled off the reference render: white falls to
+     #646464, the #cccccc rules to #565656, a #333333 digit to #2d2d2d.)
+
+     One sheet over everything with the lit cells lifted above it, rather than
+     a per-cell blackout: nothing then has to be kept aligned with the board,
+     and the dim outside the grid comes free. */
+  .hintscrim{position:absolute;left:0;right:0;bottom:0;top:var(--bar-h,60px);
+             background:rgba(43,43,43,.73);z-index:5;
+             opacity:0;visibility:hidden;
+             transition:opacity .22s ease, visibility 0s linear .22s}
+  .hintscrim.on{opacity:1;visibility:visible;transition:opacity .22s ease, visibility 0s}
+  /* .sc is already a stacking context (container-type contains layout) and no
+     ancestor up to #app makes one, so a lit cell compares directly with the
+     sheet and simply sits on top of it. */
+  .board.hinting .sc.lit{z-index:6}
+
+  /* the card itself — 180x268 on the rail, 360x182 over the mobile dock */
+  .hintcard{position:absolute;z-index:7;background:#efefef;border-radius:12px;
+            display:flex;flex-direction:column;align-items:center;
+            padding:22px 16px 25px;text-align:center;
+            opacity:0;visibility:hidden;transform:translateY(-4px);
+            transition:opacity .22s ease, transform .22s ease, visibility 0s linear .22s}
+  .hintcard.on{opacity:1;visibility:visible;transform:none;
+               transition:opacity .22s ease, transform .22s ease, visibility 0s}
+  /* the text takes the slack so it centres between the card's top and the
+     button parked at the bottom — the frame's 99 and 213 out of 268 */
+  .hintcard p{margin:0;flex:1;display:flex;align-items:center;
+              font-size:14px;font-weight:500;line-height:1.45;color:var(--ink)}
+  /* the number under discussion: Montserrat Black in #008ad0 */
+  .hintcard b{font-weight:900;color:#008ad0}
+  .hcbtns{display:flex;gap:5px;flex:none}
+  .hcbtns button{min-width:73px;height:30px;padding:5px 14px;border-radius:4px;
+        font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;
+        border:1px solid #a4a4a4;background:#fff;color:var(--ink);
+        box-shadow:0 2.549px 0 rgba(0,0,0,.25)}
+  .hcbtns button.only{min-width:90px}
+  .hcbtns button.pri{border-color:#0fafff;background:#0fafff;color:#fff}
+  .hcbtns button:active{transform:translateY(1px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
+  .hcclose{position:absolute;top:9px;right:9px;width:20px;height:20px;border-radius:50%;
+        border:none;background:#fff;color:#424242;cursor:pointer;padding:0;
+        display:flex;align-items:center;justify-content:center}
+  .hcclose svg{width:10px;height:10px;display:block}
+  @media(prefers-reduced-motion:reduce){
+    .hintscrim,.hintscrim.on,.hintcard,.hintcard.on{transition-duration:0s}
+    .hintcard{transform:none}
+  }
 
   /* An incorrect entry looks exactly as it does in the crossword: red bold,
      with a diagonal drawn as a gradient across the whole cell so it lands on
      the corners rather than being a rotated rule that overhangs. */
   .sc.wrong{z-index:1}
-  .sc.wrong .v{color:var(--wrong);font-weight:700}
+  .sc.wrong .v{color:#e90000;font-weight:600}
   .sc.wrong::after{content:"";position:absolute;inset:0;background:linear-gradient(to top right,
-    transparent calc(50% - .8px),var(--wrong) calc(50% - .8px),var(--wrong) calc(50% + .8px),transparent calc(50% + .8px))}
+    transparent calc(50% - 1px),#e90000 calc(50% - 1px),#e90000 calc(50% + 1px),transparent calc(50% + 1px))}
 
   /* core.css exempts the crossword's .cell from the global focus ring but has
      never heard of .sc, so a selected cell was picking up a 2px ring offset
@@ -73,8 +141,14 @@
      the eye can find "is 5 still possible?" without reading the whole cell */
   .cands{position:absolute;inset:1px;display:grid;grid-template-columns:repeat(3,1fr);
          grid-template-rows:repeat(3,1fr);pointer-events:none}
+  /* sized off the cell like the entries are — the design's own ratio is the
+     9px mark in the 44.4 "cell-icon-box", i.e. a fifth of the cell */
   .cands span{display:flex;align-items:center;justify-content:center;
-        font-size:clamp(7px,1.35vw,10px);font-weight:500;color:#7a7a7a;line-height:1}
+        font-family:var(--font-key);
+        font-size:clamp(7px,1.35vw,10px);font-weight:700;color:#7a7a7a;line-height:1}
+  /* has to sit AFTER the clamp above, not up with .sc: same specificity, so
+     source order is what decides which one the browser keeps */
+  @supports (container-type:inline-size){ .cands span{font-size:21cqw} }
   .sc.sel .cands span{color:#eaf6ff}
   .caption{margin:16px auto 0;max-width:560px;text-align:center;font-size:15px;
            line-height:1.5;color:#5f5f5f}
@@ -89,41 +163,53 @@
         font-size:14px;font-weight:700;color:var(--ink);text-decoration:underline}
 
   /* ---------- right rail ---------- */
-  .rail{display:flex;flex-direction:column;gap:14px;min-width:0}
-  .panel{border:1px solid #e4e4e4;border-radius:var(--panel-radius);background:#fff;padding:10px}
+  .rail{display:flex;flex-direction:column;gap:14px;min-width:0;position:relative}
+  .panel{border:1px solid #cccccc;border-radius:8px;background:#fff;padding:10px}
   .prow{display:flex;align-items:stretch}
-  .pbtn{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  .pbtn{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
         background:none;border:none;padding:9px 2px;border-radius:8px;cursor:pointer;
-        font-family:var(--font);font-size:12.5px;font-weight:600;color:var(--ink)}
+        font-family:var(--font);font-size:12px;font-weight:600;color:#333333}
   .pbtn:hover:not(:disabled){background:#f4f4f4}
-  .pbtn:disabled{color:#c2c2c2;cursor:default}
-  .pbtn svg{width:24px;height:24px}
-  .pbtn.hint{color:#e0483f}
-  .pdiv{width:1px;background:#e4e4e4;margin:6px 0}
-  .railhead{text-align:center;font-size:14px;font-weight:600;color:#6f6f6f;margin:2px 0 -4px}
+  .pbtn:disabled{color:#bbbbbb;cursor:default}
+  /* the frame gives undo/redo/hint a 22 box and Cell/Grid a 24 one — they are
+     not one size, and flattening them is what made Cell look shrunken */
+  .pbtn svg{width:22px;height:22px}
+  #candCell svg,#candGrid svg,#mobCell svg,#mobGrid svg{width:24px;height:24px}
+  /* the frame reddens the lifebuoy, not the word under it */
+  .pbtn.hint svg{color:#e74c3c}
+  .pbtn.hint:disabled svg{color:inherit}
+  .pdiv{width:1px;background:#cccccc;margin:6px 0}
+  .railhead{text-align:center;font-size:14px;font-weight:600;color:#666666;margin:2px 0 -4px}
+
+  /* the card lands on the rail, covering it from the top down (Figma puts it
+     at the rail's own x/y, 180x268) */
+  .rail .hintcard{left:0;right:0;top:0;min-height:268px}
 
   /* Number pad: digits in three columns beside a mode column (pen / pencil /
      erase). Splitting the two means a 6x6 gets two digit rows without leaving
      a hole where the ninth key would be. */
-  .pad{display:flex;align-items:stretch;border:1px solid #e4e4e4;
-       border-radius:var(--panel-radius);overflow:hidden;background:#e4e4e4;gap:1px}
+  .pad{display:flex;align-items:stretch;border:1px solid #cccccc;
+       border-radius:8px;overflow:hidden;background:#cccccc;gap:1px}
   /* The digit grid carries a definite ratio (3 columns by however many rows
      the shape needs), which gives the pad its height. The mode column then
      divides that same height into three, so a 6x6's two digit rows do not
      leave the modes hanging past the bottom. */
-  .pad-digits{flex:3 1 0;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+  .pad-digits{flex:141 1 0;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
               aspect-ratio:3 / var(--drows,3)}
-  .pad-modes{flex:1 1 0;display:grid;grid-template-rows:repeat(3,1fr);gap:1px;min-height:0}
+  .pad-modes{flex:39 1 0;display:grid;grid-template-rows:repeat(3,1fr);gap:1px;min-height:0}
   .pad button{background:#fff;border:none;display:flex;align-items:center;
-        justify-content:center;cursor:pointer;font-family:var(--font);font-size:19px;
-        font-weight:700;color:var(--ink3);min-height:0}
+        justify-content:center;cursor:pointer;font-family:var(--font);font-size:18px;
+        font-weight:600;color:#333333;min-height:0}
 
   .pad button:hover{background:#f4f4f4}
   .pad button.done{color:#cfcfcf}          /* all nine of this digit are placed */
-  .pad button svg{width:21px;height:21px}
-  .pad .mode{color:#9a9a9a}
-  .pad .mode.on{color:#0fafff}
-  .pad .erase{color:#e0483f}
+  .pad button svg{width:20px;height:20px}
+  /* Both modes carry the same pencil; the outline one is the draft (pen) and
+     the solid one is candidates, exactly as btn-draft-pencil /
+     btn-candidate-pencil do. Colour then only has to say which is live. */
+  .pad .mode{color:#b8b8b8}
+  .pad .mode.on{color:#307df6}
+  .pad .erase{color:#e74c3c}
 
   /* ---------- mobile ----------
      The pad moves under the board and the rail's controls fold into one row,
@@ -141,12 +227,15 @@
     #mobiledock{margin-top:20px}
     .rail{display:none}
     .caption{display:none}
-    #mobiledock{display:block;flex:none;padding:0 15px calc(15px + env(safe-area-inset-bottom))}
+    #mobiledock{display:block;flex:none;position:relative;
+                padding:0 15px calc(15px + env(safe-area-inset-bottom))}
     .board{--board-max:min(100vw - 30px, 56vh)}
     @supports (height:100dvh){ .board{--board-max:min(100vw - 30px, 56dvh)} }
-    #mobiledock .prow{border:1px solid #e4e4e4;border-radius:8px;margin-bottom:20px;height:63px}
+    #mobiledock .prow{border:1px solid #cccccc;border-radius:8px;margin-bottom:20px;height:63px}
     #mobiledock .pbtn{font-size:12px;gap:4px;padding:0}
-    #mobiledock .pbtn svg{width:22px;height:22px}
+    /* 360x182 starting at the action row — so it covers Undo/Redo/Hint and the
+       top of the pad, which is where the frame puts it */
+    #mobiledock .hintcard{left:15px;right:15px;top:0;min-height:182px}
     /* pad is 360x162 — three 54px rows, digits and modes split 277:83 */
     #mobiledock .pad{height:162px}
     #mobiledock .pad-digits{aspect-ratio:auto;grid-auto-rows:1fr;flex:277 1 0}
@@ -171,7 +260,7 @@
   #inkPreview span{display:flex;align-items:center;justify-content:center;
     font-size:14px;font-weight:700;line-height:1;color:#18181b}
   @media print{
-    .topbar,.rail,#mobiledock,.overlay,#toast,.board{display:none !important}
+    .topbar,.rail,#mobiledock,.overlay,#toast,.board,.hintscrim{display:none !important}
     .main{display:block;padding:0}
     #printGrid{display:block;margin:0 auto}
     .caption{margin-top:14px;color:#000}
@@ -209,12 +298,20 @@
       </div>
 
       <div class="pad" id="pad" role="group" aria-label="Number pad"></div>
+
+      <!-- HINT 1 / HINT 2. One card per breakpoint rather than one card moved
+           between them: the rail and the dock are never both on screen, so the
+           hidden one costs nothing and neither layout needs measuring. -->
+      <div class="hintcard" id="hintCard" role="dialog" aria-live="polite"
+           aria-label="Hint"></div>
     </div>
   </div>
 
   <div id="mobiledock">
     <div class="prow" id="mobRail"></div>
     <div class="pad" id="padMob" role="group" aria-label="Number pad"></div>
+    <div class="hintcard" id="hintCardMob" role="dialog" aria-live="polite"
+         aria-label="Hint"></div>
   </div>
 
   <!-- Settings -->
@@ -337,6 +434,10 @@
     </div>
   </div></div>
 
+  <!-- the hint sheet: one child of #app so it covers board, rail, pad and
+       caption together, from under the toolbar to the bottom of the panel -->
+  <div class="hintscrim" id="hintScrim"></div>
+
   <div id="menuScrim"></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div id="live" class="sr-only" role="status" aria-live="polite"></div>
@@ -402,6 +503,8 @@
      missing, second shows more specifically where it can be entered, third
      reveals the number" — so a hint is a three-press sequence on one target. */
   let hintTarget=null, hintStage=0;
+  /* which cells survive the blackout at the current stage */
+  let hintLit=new Set();
   /* No cell is selected until the reader picks one. Opening with a blue cell
      already filled in reads as a placed value, and focusing it on load also
      scrolled the board into view inside the embed. -1 means "none". */
@@ -450,7 +553,9 @@
       const cd=document.createElement('div'); cd.className='cands';
       for(let n=1;n<=N;n++){const s=document.createElement('span');s.dataset.n=n;cd.appendChild(s);}
       el.appendChild(cd);
-      el.addEventListener('click',()=>{cur=i;render();focusCur();});
+      /* picking a cell is the reader taking over — the spotlight has to lift,
+         or the board they just tapped stays blacked out */
+      el.addEventListener('click',()=>{cur=i;if(hintStage)closeHint();render();focusCur();});
       row.appendChild(el); cellEls.push(el);
     }
     board.appendChild(row);
@@ -472,6 +577,7 @@
   function countPlaced(n){ let k=0; for(let i=0;i<CELLS;i++) if(vals[i]===n) k++; return k; }
 
   function render(){
+    board.classList.toggle('hinting',hintStage>0&&!!hintTarget);
     const selVal=cur>=0?vals[cur]:0;
     const peerSet=(opts.peers&&cur>=0)?new Set(peersOf(cur)):new Set();
     for(let i=0;i<CELLS;i++){
@@ -480,8 +586,9 @@
       el.classList.toggle('peer',peerSet.has(i)&&!givens[i]);
       el.classList.toggle('same',opts.same&&!!selVal&&v===selVal&&i!==cur);
       el.classList.toggle('sel',i===cur);
-      el.classList.toggle('hintunit',hintStage===1&&!!hintTarget&&hintTarget.cells.indexOf(i)>=0);
-      el.classList.toggle('hintcell',hintStage>=2&&!!hintTarget&&hintTarget.i===i);
+      /* the hint spotlight: lit cells render normally, everything else is
+         blacked out by .board.hinting */
+      el.classList.toggle('lit',hintLit.has(i));
       /* one appearance for both routes to "this is wrong": a Check that
          marked it, or error-check mode noticing as it is typed */
       el.classList.toggle('wrong',!!v&&!givens[i]&&
@@ -526,6 +633,11 @@
     struck.clear(); s.struck.forEach(i=>struck.add(i));
   }
   function commit(fn){
+    /* Any change to the board makes the hint stale — Reveal grid, a Check, an
+       accepted hint, a typed digit. One teardown here rather than one at every
+       call site, which is how Reveal grid used to leave the spotlight on with
+       the puzzle already solved underneath it. */
+    if(hintStage) closeHint();
     const before=snapshot();
     fn();
     undoStack.push(before); redoStack.length=0;
@@ -533,8 +645,10 @@
     render(); checkWin();
   }
   $('#undoBtn').onclick=()=>{ if(!undoStack.length)return; const s=undoStack.pop();
+    if(hintStage) closeHint();
     redoStack.push(snapshot()); restore(s); render(); };
   $('#redoBtn').onclick=()=>{ if(!redoStack.length)return; const s=redoStack.pop();
+    if(hintStage) closeHint();
     undoStack.push(snapshot()); restore(s); render(); };
 
   function place(i,n){
@@ -576,6 +690,9 @@
        between pen and pencil modes by clicking on the respective buttons in
        the keypad or by pressing the space bar". */
     const modes=document.createElement('div'); modes.className='pad-modes';
+    /* Two different drawings, not one in two colours: the pen carries the
+       little handle at its top, the pencil does not. Colour then only has to
+       say which mode is live — #307df6 for that one, #b8b8b8 for the other. */
     [['pen','i-pen','Pen mode — final entries'],
      ['pencil','i-pencil','Pencil mode — possible entries'],
      ['erase','i-trash','Erase this cell']].forEach(([k,ic,label])=>{
@@ -640,49 +757,161 @@
   const boxCells=i=>unitsOf.filter(u=>u.kind==='box')
                           .find(u=>u.cells.indexOf(i)>=0).cells;
 
+  /* A hidden single in a BOX is looked for first, ahead of the strictly easier
+     naked single. Not an accident: HINT 1 asks "where can a 4 go in this
+     block", so the box story is the one the cards are written to tell, and its
+     evidence is three or four cells rather than a cell's twenty peers. */
   function nextDeduction(){
     /* only ever hint a number that is actually correct — with a wrong entry on
        the board the candidate maths can otherwise "prove" a false placement */
+    const hidden=kind=>{
+      for(const u of unitsOf){
+        if(u.kind!==kind)continue;
+        for(let n=1;n<=N;n++){
+          if(u.cells.some(i=>vals[i]===n))continue;
+          const spots=u.cells.filter(i=>!vals[i]&&legalFor(i).indexOf(n)>=0);
+          if(spots.length===1&&P.solution[spots[0]]===n)
+            return {i:spots[0],n:n,kind:'hidden',unit:u.kind,cells:u.cells};
+        }
+      }
+      return null;
+    };
+    let t=hidden('box'); if(t)return t;
     for(let i=0;i<CELLS;i++){
       if(vals[i])continue;
       const c=legalFor(i);
       if(c.length===1&&c[0]===P.solution[i])
-        return {i:i,n:c[0],kind:'naked single',unit:'box',cells:boxCells(i)};
+        return {i:i,n:c[0],kind:'naked',unit:'box',cells:boxCells(i)};
     }
-    for(const u of unitsOf){
-      for(let n=1;n<=N;n++){
-        if(u.cells.some(i=>vals[i]===n))continue;
-        const spots=u.cells.filter(i=>!vals[i]&&legalFor(i).indexOf(n)>=0);
-        if(spots.length===1&&P.solution[spots[0]]===n)
-          return {i:spots[0],n:n,kind:'hidden single',unit:u.kind,cells:u.cells};
-      }
-    }
+    t=hidden('row')||hidden('column'); if(t)return t;
     for(let i=0;i<CELLS;i++)
       if(!vals[i]) return {i:i,n:P.solution[i],kind:'solution',unit:'box',cells:boxCells(i)};
     return null;
   }
 
+  /* The cells HINT 2 punches out alongside the block: the ones already holding
+     this number that rule it out of every other square in the unit. Derived,
+     not decorative — if a cell is lit, it is doing work in the argument. */
+  function evidence(t){
+    const out=new Set();
+    if(t.kind==='naked'){
+      /* here the argument is "everything else is taken", so the evidence is
+         whatever the cell can already see */
+      peersOf(t.i).forEach(j=>{ if(vals[j]) out.add(j); });
+      return out;
+    }
+    t.cells.forEach(j=>{
+      if(j===t.i) return;
+      if(vals[j]){ if(vals[j]===t.n) out.add(j); return; }
+      peersOf(j).forEach(k=>{ if(vals[k]===t.n) out.add(k); });
+    });
+    return out;
+  }
+
+  const UNITWORD={box:'block',row:'row',column:'column'};
+  /* Returned in pieces rather than as one string: the frame sets the number
+     in Montserrat Black #008ad0 mid-sentence, so it needs its own element —
+     and building the sentence out of text nodes keeps it un-injectable. */
+  function hintText(t,stage){
+    const u=UNITWORD[t.unit]||'block';
+    if(t.kind==='naked')
+      return stage===1 ? ['Think about what can go in this cell']
+                       : ['In this '+u+', only a ',t.n,' can be entered in this cell.'];
+    return stage===1 ? ['Think about where a ',t.n,' can go in this '+u]
+                     : ['In this '+u+', this cell is only one where ',t.n,
+                        ' can be entered.'];
+  }
+  const hintSentence=(t,stage)=>hintText(t,stage).join('');
+
+  /* Both cards are filled from one description, so the phone and the desktop
+     can never drift into saying different things about the same deduction. */
+  const CLOSE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '+
+    'stroke-width="2.6" stroke-linecap="round" aria-hidden="true">'+
+    '<path d="M6 6l12 12M18 6L6 18"/></svg>';
+  function paintHint(){
+    const on=!!hintTarget&&!!hintStage;
+    const scrim=$('#hintScrim'); if(scrim) scrim.classList.toggle('on',on);
+    [$('#hintCard'),$('#hintCardMob')].forEach(card=>{
+      if(!card) return;
+      card.classList.toggle('on',on);
+      /* the card keeps its last contents while it fades out — emptying it here
+         would make the text vanish a frame before the card does */
+      if(!on) return;
+      card.innerHTML='';
+      const x=document.createElement('button');
+      x.type='button'; x.className='hcclose'; x.innerHTML=CLOSE_SVG;
+      x.setAttribute('aria-label','Close hint');
+      x.onclick=closeHint;
+      const p=document.createElement('p');
+      const span=document.createElement('span');
+      hintText(hintTarget,hintStage).forEach(part=>{
+        if(typeof part==='number'){
+          const b=document.createElement('b'); b.textContent=part; span.appendChild(b);
+        }else span.appendChild(document.createTextNode(part));
+      });
+      p.appendChild(span);
+      const btns=document.createElement('div'); btns.className='hcbtns';
+      const mk=(label,cls,fn)=>{
+        const b=document.createElement('button');
+        b.type='button'; b.textContent=label; if(cls)b.className=cls; b.onclick=fn;
+        btns.appendChild(b);
+      };
+      /* HINT 1's single button is the wider 90; the pair are 73 each */
+      if(hintStage===1) mk('Next','only',()=>showHint(2));
+      else { mk('Back','',()=>showHint(1)); mk('Accept','pri',acceptHint); }
+      card.appendChild(x); card.appendChild(p); card.appendChild(btns);
+    });
+  }
+
+  function showHint(stage){
+    if(!hintTarget) return;
+    hintStage=stage;
+    /* Both frames punch out the SAME cells — HINT 1 and HINT 2 share one
+       Exclude. So the evidence is on show from the first card: it is what the
+       reader is being asked to reason from, not the answer. What the second
+       card adds is the cell, by selecting it. */
+    hintLit=new Set(hintTarget.cells);
+    evidence(hintTarget).forEach(i=>hintLit.add(i));
+    if(stage>=2) cur=hintTarget.i;
+    XW.emit('assist_used',{action:'hint',stage:stage});
+    XW.announce(hintSentence(hintTarget,stage)+
+      (stage>=2?' Row '+(rowOf(hintTarget.i)+1)+', column '+(colOf(hintTarget.i)+1)+'.':''));
+    paintHint(); render();
+  }
+
+  /* The sheet covers the board, so a tap on a dimmed cell now lands on the
+     sheet rather than the cell. Dismissing on that tap is what keeps the board
+     from feeling dead — and a lit cell, which sits above the sheet, still
+     selects normally. */
+  $('#hintScrim').addEventListener('click',()=>{ if(hintStage) closeHint(); });
+
+  function closeHint(){
+    hintTarget=null; hintStage=0; hintLit=new Set();
+    paintHint(); render();
+  }
+
+  function acceptHint(){
+    const t=hintTarget;
+    if(!t){ closeHint(); return; }
+    commit(()=>{ vals[t.i]=t.n; notes[t.i].clear(); struck.delete(t.i);
+                 if(opts.auto) peersOf(t.i).forEach(j=>notes[j].delete(t.n)); });
+    cur=t.i;
+    XW.announce('Hint placed '+t.n+' at row '+(rowOf(t.i)+1)+' column '+(colOf(t.i)+1));
+    render(); focusCur();
+  }
+
+  /* Escape has to reach the card from anywhere: the reader may be on a card
+     button, on the board, or nowhere at all. core.js's own Escape handler only
+     knows about overlays and menus, and this is neither. */
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&hintStage&&!XW.anyOverlayOpen()){ closeHint(); focusCur(); }
+  });
+
   $('#hintBtn').onclick=()=>{
     /* a target that has since been filled is spent — start a fresh sequence */
     if(!hintTarget||vals[hintTarget.i]){ hintTarget=nextDeduction(); hintStage=0; }
     if(!hintTarget){ XW.toast('Nothing left to hint'); return; }
-    hintStage++;
-    XW.emit('assist_used',{action:'hint',stage:hintStage});
-    if(hintStage===1){
-      const msg='A '+hintTarget.n+' is missing from this '+hintTarget.unit;
-      XW.toast(msg); XW.announce(msg);
-    }else if(hintStage===2){
-      cur=hintTarget.i;
-      const msg='The '+hintTarget.n+' goes in row '+(rowOf(cur)+1)+', column '+(colOf(cur)+1);
-      XW.toast('The '+hintTarget.n+' goes in the highlighted cell'); XW.announce(msg);
-    }else{
-      const t=hintTarget;
-      commit(()=>{ vals[t.i]=t.n; notes[t.i].clear(); struck.delete(t.i);
-                   if(opts.auto) peersOf(t.i).forEach(j=>notes[j].delete(t.n)); });
-      cur=t.i; hintTarget=null; hintStage=0;
-      XW.announce('Hint placed '+t.n+' at row '+(rowOf(t.i)+1)+' column '+(colOf(t.i)+1));
-    }
-    render(); focusCur();
+    showHint(hintStage>=1?2:1);
   };
 
   /* ---------- keyboard ---------- */
@@ -798,7 +1027,8 @@
       if(act==='restart'){
         XW.dialog('Start Again','Are you sure you want to restart the puzzle?',()=>{
           commit(()=>{ for(let i=0;i<CELLS;i++){ if(!givens[i])vals[i]=0; notes[i].clear(); } struck.clear(); });
-          hintTarget=null; hintStage=0; won=false; cur=-1;
+          hintTarget=null; hintStage=0; hintLit=new Set(); paintHint();
+          won=false; cur=-1;
           XW.timer.reset(); XW.timer.stopped=false;
           $('#timerPill').classList.remove('paused');
           render();
