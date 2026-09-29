@@ -115,7 +115,13 @@ const state = { api:'', token:'', game:'crossword' };
 (function fillGames(){
   const sel = $('#game');
   Object.entries(window.GAMES).forEach(([id,g]) => {
-    if (g.hidden || g.generated) return;
+    /* The list is games an editor can upload to. A purely generated game
+       (sudoku, Turnspell, Gridlock) has nothing to upload. A HYBRID one —
+       Word Search — generates only as a fallback for dates nobody authored
+       and still takes authored puzzles, so the presence of `generated` is no
+       longer reason enough on its own to leave a game out. */
+    if (g.hidden) return;
+    if (g.generated && !g.generated.fallback) return;
     const o = document.createElement('option');
     o.value = id; o.textContent = g.label; sel.appendChild(o);
   });
