@@ -1,0 +1,26 @@
+{
+  "id": "wordsearch-social-engineering",
+  "title": "Word Search",
+  "theme": "Social engineering",
+  "date": "2026-09-29",
+  "author": "Matthew Luter",
+  "editor": "Patti Varol",
+  "W": 15,
+  "H": 15,
+  "_note": "Words only \u2014 the engine lays the grid out, seeded by this id, so the layout is identical for every reader. Supply `grid` and `placed` too if you want to pin an exact layout; both are verified on load and re-laid if a listed word is not really in the grid.",
+  "words": [
+    "Baiting",
+    "Catfishing",
+    "Deception",
+    "Impersonation",
+    "Manipulation",
+    "Pretexting",
+    "Ransomware",
+    "Scareware",
+    "Spear Phishing",
+    "Spoofing",
+    "Tailgating",
+    "Trojan Horse",
+    "Vishing"
+  ]
+}

@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<!-- zoom deliberately enabled: blocking it is a WCAG failure and iOS ignores it anyway -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Word Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<style>
+  /* Word Search — measured off the "Grid 1" frame: a 644 card with a 400
+     board 30 in from the left and a 180 word rail beside it. */
+  #app{max-width:1040px}
+  .main{display:grid;grid-template-columns:1fr 200px;gap:24px;padding:20px 24px 12px;
+        flex:1 1 auto;min-height:0}
+  .gridwrap{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+
+  /* ---------- board ----------
+     GridWrapper in the design is a 400 square with a #cccccc rule and r8, and
+     the letters sit on nothing — there are no cell borders at all. */
+  .board{position:relative;display:grid;width:min(100%,var(--board-max,460px));aspect-ratio:1;
+         grid-template-columns:repeat(var(--w,15),1fr);grid-template-rows:repeat(var(--h,15),1fr);
+         border:1px solid #cccccc;border-radius:8px;padding:6px;background:#fff;
+         touch-action:none;user-select:none;-webkit-user-select:none}
+  .wc{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;
+      font-family:'Inter',var(--font);font-weight:600;color:#333333;
+      font-size:clamp(9px,1.5vw,13px);cursor:pointer;-webkit-tap-highlight-color:transparent}
+  /* a letter covered by a found capsule reads white, which is how the solid
+     #9d00ff band in the design stays legible */
+  .wc.inword{color:#fff}
+  .wc.hinted{color:#9d00ff;font-weight:700}
+  .wc.hinted::after{content:'';position:absolute;inset:12%;border-radius:50%;
+        box-shadow:0 0 0 2px #ca78ff}
+
+  /* capsules live under the letters and over the board background */
+  .caps{position:absolute;inset:0;z-index:1;pointer-events:none}
+  .cap{position:absolute;border-radius:999px;transform-origin:left center;
+       background:#9d00ff}
+  .cap.live{background:#ca78ff}
+
+  .caption{margin:16px auto 0;max-width:520px;text-align:center;font-size:14px;
+           line-height:1.5;color:#373737}
+
+  /* ---------- word rail ----------
+     WordCard 180x34 on a 38 pitch, r8, white with a #cccccc rule. */
+  .rail{display:flex;flex-direction:column;min-width:0;min-height:0}
+  .railhead{font-size:13px;font-weight:700;color:#6f6f6f;margin:0 0 8px;text-transform:uppercase;
+            letter-spacing:.04em}
+  .wlist{display:flex;flex-direction:column;gap:4px;overflow-y:auto;min-height:0;padding-right:4px}
+  .wlist::-webkit-scrollbar{width:4px}
+  .wlist::-webkit-scrollbar-thumb{background:#e9ecee;border-radius:27px}
+  .wcard{display:flex;align-items:center;min-height:34px;padding:8px 12px;border-radius:8px;
+         border:1px solid #cccccc;background:#fff;cursor:pointer;text-align:left;
+         font-family:'Inter',var(--font);font-size:13px;font-weight:500;color:#333333;
+         transition:border-color .12s,background .12s}
+  .wcard:hover{border-color:#ca78ff}
+  /* the design's "word selected" state: the card the reader is chasing */
+  .wcard.sel{border-color:#ca78ff;box-shadow:0 0 0 1px #ca78ff}
+  /* found: pale purple with the same green the archive uses for Completed */
+  .wcard.found{background:#ebccff;border-color:#1cb238;cursor:default}
+  .wcard.found .wtx{text-decoration:line-through;text-decoration-thickness:1px}
+  .wtx{flex:1;min-width:0}
+  .wtick{width:16px;height:16px;flex:none;border-radius:18px;background:#1cb238;
+         display:none;align-items:center;justify-content:center;margin-left:8px}
+  .wcard.found .wtick{display:flex}
+  .wtick svg{width:10px;height:10px;color:#fff}
+
+  /* ---------- mobile ----------
+     The design has no mobile frame, so this is the same arrangement the other
+     games use: board first, list below, both full width. */
+  @media(max-width:720px){
+    .main{grid-template-columns:1fr;gap:14px;padding:14px 12px 0;align-content:start;flex:0 0 auto}
+    .board{--board-max:min(100vw - 24px, 58vh)}
+    .caption{font-size:12.5px;margin-top:10px}
+    .rail{max-height:none}
+    .wlist{max-height:34vh;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+           gap:6px;overflow-y:auto}
+    .railhead{text-align:center}
+  }
+  @media(min-width:721px){ .board{--board-max:min(460px,calc(100vh - 210px))} }
+
+  /* ---------- print ----------
+     Three modes, as How To Play promises: empty, with found words, solution. */
+  @media print{
+    .topbar,.rail,.overlay,#toast{display:none !important}
+    .main{display:block;padding:0}
+    .board{--board-max:none;width:6.2in;margin:0 auto;border-color:#000}
+    .wc{font-size:13px;color:#000}
+    .wc.inword{color:#000}
+    .cap{background:none !important;box-shadow:inset 0 0 0 1.5px #000}
+    #printWords{display:block !important;margin:14px auto 0;max-width:6.2in;
+                columns:3;font-size:12px;line-height:1.7;color:#000}
+  }
+  #printWords{display:none}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="main">
+    <div class="gridwrap">
+      <div class="board" id="board"><div class="caps" id="caps"></div></div>
+      <div class="caption" id="caption"></div>
+      <ul id="printWords"></ul>
+    </div>
+
+    <div class="rail">
+      <div class="railhead" id="railhead">Words</div>
+      <div class="wlist" id="wlist"></div>
+    </div>
+  </div>
+
+  <!-- Settings — the frame lists two switches and nothing else -->
+  <div class="overlay" id="settingsOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-set">
+    <div class="mhead"><h2 id="dlgH-set">Settings</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <div class="sgroup">
+        <div class="srow"><div class="lab"><b>Show timer</b><span>Shows the timer while playing this puzzle</span></div>
+          <label class="sw"><input type="checkbox" id="optTimerShown" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Sound</b><span>Control puzzle audio (if available) and multiplayer sounds</span></div>
+          <label class="sw"><input type="checkbox" id="optSound" checked/><i></i></label></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="applySettings">Apply</button></div>
+  </div></div>
+
+  <!-- How to play — both design pages, in their own words -->
+  <div class="overlay" id="howtoOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-howto">
+    <div class="mhead"><h2 id="dlgH-howto">How to play</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>The objective of this game is to find all the listed words hidden in the grid. To mark words you have found, tap or click the first letter of the word, drag until the last letter and release. Words can run horizontally, vertically or diagonally and may go forward or backward. A useful strategy to find a word is to look for its first letter and then look in all eight possible directions.</p>
+      <p><b>Save</b></p>
+      <p>Your progress will automatically be saved every 10 seconds. Additionally, you can tap Save from the navigation menu at any time.</p>
+      <p><b>Hint</b></p>
+      <p>Use the Hint option under Assist at the top of the puzzle to show the first letter of a word that is not yet found. To find a specific word, click or tap on the word first and then click on Hint.</p>
+      <p><b>Reveal</b></p>
+      <p>If you are stuck, use the Reveal option under Assist at the top of the puzzle to see all the answers.</p>
+      <p><b>Start again</b></p>
+      <p>Use the Start again option to reset the entire grid. The empty grid will be displayed and the clock will be set back to zero.</p>
+      <p><b>Print</b></p>
+      <p>Use the Print menu to print the empty puzzle, the grid with found words, or the solution grid.</p>
+      <p><b>Timer</b></p>
+      <p>The timer can be turned on or off. Click on Settings to find the switch.</p>
+      <p><b>Sound</b></p>
+      <p>You can turn off game sounds via the Settings menu if you&rsquo;d rather not have sound while solving the puzzle.</p>
+    </div>
+  </div></div>
+
+  <!-- Support -->
+  <div class="overlay" id="supportOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-support">
+    <div class="mhead"><h2 id="dlgH-support">Support</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>This player is powered by GameLab</p>
+      <div class="soft">
+        <p>Please include the following in your message:</p>
+        <p><b>Ticket number: <span id="ticketNo">&mdash;</span></b></p>
+        <p>Device type</p><p>Device orientation</p><p>Screenshot (if possible)</p>
+      </div>
+      <hr/>
+      <p id="copyrightLine">&copy; 2026 Tribune Content Agency, LLC</p>
+    </div>
+  </div></div>
+
+  <!-- Print -->
+  <div class="overlay" id="printOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-print">
+    <div class="mhead"><h2 id="dlgH-print">Print</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <div class="printopts" role="radiogroup" aria-label="What to print">
+        <label><input type="radio" class="rdo sm" name="pmode" value="blank" checked/> Blank puzzle</label>
+        <label><input type="radio" class="rdo sm" name="pmode" value="found"/> Grid with found words</label>
+        <label><input type="radio" class="rdo sm" name="pmode" value="solution"/> Solution</label>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="doPrint">Print</button></div>
+  </div></div>
+
+  <!-- Congratulations -->
+  <div class="overlay" id="winOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-win">
+    <div class="mhead"><h2 id="dlgH-win">Congratulations!</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center">
+      <p>You completed this puzzle. Keep playing!</p>
+      <div class="winstats">
+        <div><span class="wl">Score</span><b id="winPct">100%</b></div>
+        <div><span class="wl">Time</span><b id="winTime">&mdash;</b></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="winShare">Share</button></div>
+    <p class="winnext"><button type="button" id="winMore">Discover Your New Challenge</button></p>
+  </div></div>
+
+  <!-- shared confirm/notice -->
+  <div class="overlay" id="dialogOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="mhead"><h2 id="dlgTitle">&mdash;</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center"><p id="dlgBody">&mdash;</p></div>
+    <div class="mbtns">
+      <button class="btn sec" type="button" id="dlgClose">Close</button>
+      <button class="btn pri" type="button" id="dlgOk">Ok</button>
+    </div>
+  </div></div>
+
+  <div id="menuScrim"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="live" class="sr-only" role="status" aria-live="polite"></div>
+</div>
+
+<style>
+  /* Congratulations stats, as the other games draw them */
+  .winstats{display:flex;justify-content:center;gap:56px;margin:18px 0 4px}
+  .winstats div{display:flex;flex-direction:column;gap:2px}
+  .winstats .wl{font-size:14px;font-weight:400;color:var(--ink)}
+  .winstats b{font-size:28px;font-weight:700;color:var(--ink)}
+  .winnext{margin:14px 0 18px;text-align:center}
+  .winnext button{background:none;border:none;cursor:pointer;font-family:var(--font);
+        font-size:14px;font-weight:700;color:var(--ink);text-decoration:underline}
+</style>
+
+<!-- games.js first: core.js reads window.GAMES to resolve the roster entry -->
+<script src="games.js"></script>
+<script src="core.js"></script>
+<script src="wordsearch-engine.js"></script>
+<script>
+(async function(){
+  'use strict';
+  const $=XW.$;
+  (function(){
+    const want=new URLSearchParams(location.search).get('game')||'wordsearch';
+    const g=window.GAMES&&window.GAMES[want];
+    XW.gameId=(g&&g.live&&g.player==='wordsearch.html')?want:'wordsearch';
+  })();
+  const G=(window.GAMES&&window.GAMES[XW.gameId])||{};
+  const GEN=G.generated||{};
+
+  /* ---------- which puzzle ----------
+     HYBRID. An authored puzzle wins; a date with none is generated. The index
+     is consulted first because only it knows whether today was authored, and
+     a future date is refused either way. */
+  const params=new URLSearchParams(location.search);
+  const today=WORDSEARCH.todayISO();
+  const askedId=params.get('p')||'';
+  const askedDate=WORDSEARCH.dateFromId(askedId)||today;
+  const iso=(askedDate>today)?today:askedDate;
+  const substituted=(askedDate>today)?askedDate:null;
+
+  async function authoredFor(id,date){
+    const base=window.apiBase?window.apiBase(G):'';
+    const tryIndex=async url=>{
+      try{
+        const man=await (await fetch(url,{cache:'no-store'})).json();
+        if(!Array.isArray(man.index))return null;
+        /* match the id when one was asked for, otherwise the date */
+        return man.index.find(r=>r.status!=='draft'&&(id?r.id===id:r.date===date))||null;
+      }catch(e){ return null; }
+    };
+    let rec=null;
+    if(base) rec=await tryIndex(base+'/api/index?game='+encodeURIComponent(XW.gameId));
+    if(!rec&&G.manifest) rec=await tryIndex(G.manifest);
+    if(!rec) return null;
+    try{
+      const raw=await (await fetch(rec.payloadUrl||rec.file,{cache:'no-store'})).json();
+      const data=(raw&&typeof raw.data==='string')?JSON.parse(XW.b64dec(raw.data)):raw;
+      return WORDSEARCH.fromPayload(data,rec);
+    }catch(e){ return null; }
+  }
+
+  let P=null;
+  try{ P=await authoredFor(askedId&&!/^wordsearch-\d{4}-\d{2}-\d{2}$/.test(askedId)?askedId:'',iso); }catch(e){}
+  if(!P) P=WORDSEARCH.forDate(iso);
+
+  const puzId=P.id;
+  XW.puzzleId=puzId;
+  document.title='Word Search — '+iso;
+  const backToArchive=()=>XW.goArchive();
+
+  const DOW=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  (function(){
+    const d=new Date(iso+'T00:00:00');
+    const when=isNaN(d)?iso:(DOW[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear());
+    const by=[P.author?'by '+P.author:'',P.editor?'Ed. '+P.editor:''].filter(Boolean).join(' / ');
+    $('#caption').textContent='L. A. Times '+(G.label||'Word Search')+
+      (P.theme?' · '+P.theme:'')+' · '+when+(by?' · '+by:'');
+    $('#railhead').textContent=P.theme||'Words';
+  })();
+
+  /* ---------- state ---------- */
+  const Wd=P.W, Hd=P.H, CELLS=Wd*Hd;
+  const found=new Set();          // letters-string of each found word
+  const hinted=new Set();         // cell indexes given away by Hint
+  let selWord=null;               // the card the reader is chasing
+  let revealed=false, won=false;
+
+  /* ---------- chrome ----------
+     The frame's menu has five items and no Share submenu; Assist has Hint and
+     Reveal. "Ask a friend" is in the frame too but needs the accounts half of
+     the platform, so it is deliberately absent. */
+  XW.mountToolbar($('#app'),{
+    left:['timer','print'],
+    /* assistIcon is the mobile stand-in: core.css hides the Assist pill below
+       720px, so without it Hint and Reveal are unreachable on a phone. */
+    right:['settings','assistIcon','menu','assist'],
+    assistItems:[['hint','Hint'],['reveal','Reveal']],
+    menuItems:[['more','More puzzles'],['howto','How to play'],['save','Save'],
+               ['restart','Start again'],['support','Support']]
+  });
+  $('#app').insertBefore($('.topbar'),$('.main'));
+
+  /* ---------- board ---------- */
+  const board=$('#board'), caps=$('#caps');
+  board.style.setProperty('--w',Wd); board.style.setProperty('--h',Hd);
+  board.setAttribute('role','grid');
+  board.setAttribute('aria-label','Letter grid, '+Hd+' by '+Wd);
+  const cellEls=[];
+  for(let r=0;r<Hd;r++){
+    const row=document.createElement('div');
+    row.setAttribute('role','row'); row.style.display='contents';
+    for(let c=0;c<Wd;c++){
+      const i=r*Wd+c;
+      const el=document.createElement('div');
+      el.className='wc'; el.dataset.i=i; el.dataset.r=r; el.dataset.c=c;
+      el.setAttribute('role','gridcell'); el.tabIndex=-1;
+      el.textContent=P.grid[i];
+      el.setAttribute('aria-label','Row '+(r+1)+' column '+(c+1)+', '+P.grid[i]);
+      row.appendChild(el); cellEls.push(el);
+    }
+    board.appendChild(row);
+  }
+
+  /* ---------- word list ---------- */
+  const listEl=$('#wlist');
+  const cardFor={};
+  P.placed.slice().sort((a,b)=>a.text.localeCompare(b.text)).forEach(p=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='wcard';
+    b.innerHTML='<span class="wtx"></span><span class="wtick">'+
+      '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5l2.5 2.5L10 3.5" fill="none" '+
+      'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+    b.querySelector('.wtx').textContent=p.text;
+    b.onclick=()=>{ if(found.has(p.letters))return;
+                    selWord=(selWord===p.letters)?null:p.letters; render(); };
+    cardFor[p.letters]=b; listEl.appendChild(b);
+  });
+
+  /* ---------- capsules ----------
+     One rounded band per found word, laid from the centre of the first cell to
+     the centre of the last. The design draws these over the grid at full
+     opacity, which in a static mockup hides the letters underneath; here the
+     band sits under the letters and the covered letters turn white, so the
+     picture matches while the word stays readable. */
+  function capFor(p,cls){
+    const rect=board.getBoundingClientRect();
+    const pad=6;
+    const cw=(rect.width-pad*2)/Wd, chh=(rect.height-pad*2)/Hd;
+    const x0=pad+(p.col+.5)*cw, y0=pad+(p.row+.5)*chh;
+    const x1=pad+(p.col+p.dc*(p.len-1)+.5)*cw, y1=pad+(p.row+p.dr*(p.len-1)+.5)*chh;
+    const dx=x1-x0, dy=y1-y0;
+    const len=Math.sqrt(dx*dx+dy*dy), th=Math.min(cw,chh)*.78;
+    const el=document.createElement('div');
+    el.className='cap'+(cls?' '+cls:'');
+    el.style.left=x0+'px'; el.style.top=(y0-th/2)+'px';
+    el.style.width=(len+th)+'px'; el.style.height=th+'px';
+    el.style.transform='translateX('+(-th/2)+'px) rotate('+Math.atan2(dy,dx)+'rad)';
+    el.style.transformOrigin=(th/2)+'px center';
+    return el;
+  }
+
+  function render(){
+    caps.innerHTML='';
+    const covered=new Set();
+    P.placed.forEach(p=>{
+      if(!found.has(p.letters)&&!revealed)return;
+      caps.appendChild(capFor(p));
+      WORDSEARCH.cellsOf(p).forEach(([r,c])=>covered.add(r*Wd+c));
+    });
+    if(drag&&drag.cells) caps.appendChild(capFor(drag.pseudo,'live'));
+    cellEls.forEach((el,i)=>{
+      el.classList.toggle('inword',covered.has(i));
+      el.classList.toggle('hinted',hinted.has(i)&&!covered.has(i));
+    });
+    P.placed.forEach(p=>{
+      const b=cardFor[p.letters]; if(!b)return;
+      b.classList.toggle('found',found.has(p.letters)||revealed);
+      b.classList.toggle('sel',selWord===p.letters&&!found.has(p.letters));
+    });
+    const left=P.placed.length-P.placed.filter(p=>found.has(p.letters)).length;
+    XW.setChip('left',left+' left');
+    save();
+  }
+
+  /* ---------- drag selection ----------
+     Pointer events, captured on the board: a drag that starts on a letter must
+     keep tracking even when the finger leaves the grid, or a word ending at
+     the edge becomes impossible to select on a phone. */
+  let drag=null;
+  const cellFromPoint=(x,y)=>{
+    const rect=board.getBoundingClientRect(), pad=6;
+    const cw=(rect.width-pad*2)/Wd, chh=(rect.height-pad*2)/Hd;
+    const c=Math.floor((x-rect.left-pad)/cw), r=Math.floor((y-rect.top-pad)/chh);
+    if(r<0||r>=Hd||c<0||c>=Wd)return null;
+    return [r,c];
+  };
+  /* snap the loose end to the nearest of the eight legal directions */
+  const snap=(r0,c0,r1,c1)=>{
+    const dr=r1-r0, dc=c1-c0;
+    if(!dr&&!dc)return [r0,c0];
+    const adr=Math.abs(dr), adc=Math.abs(dc);
+    let sr,sc,n;
+    if(adc>adr*2){ sr=0; sc=Math.sign(dc); n=adc; }
+    else if(adr>adc*2){ sr=Math.sign(dr); sc=0; n=adr; }
+    else { sr=Math.sign(dr); sc=Math.sign(dc); n=Math.round((adr+adc)/2); }
+    n=Math.max(0,Math.min(n, sr&&sc ? Math.min(sr>0?Hd-1-r0:r0, sc>0?Wd-1-c0:c0)
+                              : (sr? (sr>0?Hd-1-r0:r0) : (sc>0?Wd-1-c0:c0))));
+    return [r0+sr*n, c0+sc*n];
+  };
+  const pseudoOf=(r0,c0,r1,c1)=>{
+    const cells=WORDSEARCH.lineCells(r0,c0,r1,c1)||[[r0,c0]];
+    const dr=Math.sign(r1-r0), dc=Math.sign(c1-c0);
+    return {row:r0,col:c0,dr:dr,dc:dc,len:cells.length};
+  };
+
+  board.addEventListener('pointerdown',e=>{
+    if(revealed||won)return;
+    const at=cellFromPoint(e.clientX,e.clientY); if(!at)return;
+    board.setPointerCapture(e.pointerId);
+    drag={r0:at[0],c0:at[1],cells:1,pseudo:pseudoOf(at[0],at[1],at[0],at[1])};
+    render(); e.preventDefault();
+  });
+  board.addEventListener('pointermove',e=>{
+    if(!drag)return;
+    const raw=cellFromPoint(e.clientX,e.clientY);
+    const end=raw?snap(drag.r0,drag.c0,raw[0],raw[1]):[drag.r0,drag.c0];
+    drag.pseudo=pseudoOf(drag.r0,drag.c0,end[0],end[1]);
+    drag.r1=end[0]; drag.c1=end[1];
+    render();
+  });
+  const endDrag=e=>{
+    if(!drag)return;
+    const d=drag; drag=null;
+    if(d.r1!==undefined){
+      const hit=WORDSEARCH.wordAt(P,d.r0,d.c0,d.r1,d.c1);
+      if(hit&&!found.has(hit.letters)){
+        found.add(hit.letters);
+        if(selWord===hit.letters)selWord=null;
+        XW.announce(hit.text+' found');
+        XW.emit('assist_used',{action:'word_found',word:hit.text});
+      }
+    }
+    render(); checkWin();
+  };
+  board.addEventListener('pointerup',endDrag);
+  board.addEventListener('pointercancel',endDrag);
+
+  /* ---------- assist ---------- */
+  function doHint(){
+    const pool=P.placed.filter(p=>!found.has(p.letters));
+    if(!pool.length){ XW.toast('Everything is found'); return; }
+    const p=pool.find(x=>x.letters===selWord)||pool[0];
+    hinted.add(p.row*Wd+p.col);
+    selWord=p.letters;
+    XW.emit('assist_used',{action:'hint'});
+    XW.announce('The first letter of '+p.text+' is at row '+(p.row+1)+', column '+(p.col+1));
+    render();
+  }
+  function doReveal(){
+    XW.dialog('Reveal all answers','Are you sure you want to reveal all the answers?',()=>{
+      revealed=true; XW.timer.stop();
+      XW.emit('assist_used',{action:'reveal_grid'});
+      render();
+    },{ok:'Ok',cancel:'Close'});
+  }
+
+  /* ---------- win ---------- */
+  function checkWin(){
+    if(won||revealed)return;
+    if(P.placed.some(p=>!found.has(p.letters)))return;
+    won=true; XW.timer.stop();
+    $('#winPct').textContent='100%';
+    $('#winTime').textContent=XW.fmtTime(XW.timer.secs);
+    XW.openOverlay('winOverlay');
+    XW.emit('game_complete',{puzzleId:puzId,seconds:XW.timer.secs});
+    XW.announce('Solved in '+XW.fmtTime(XW.timer.secs)+'.');
+    save();
+  }
+  $('#winMore').onclick=()=>backToArchive();
+  $('#winShare').onclick=()=>{
+    XW.share('copy',XW.shareUrl(),XW.shareText('Word Search'));
+    XW.emit('share_clicked',{target:'copy'});
+  };
+
+  /* ---------- persistence ---------- */
+  function save(){
+    XW.storage.save(puzId,{
+      found:[...found], hinted:[...hinted], revealed:revealed,
+      elapsed:XW.timer.secs, completed:won,
+      filled:found.size, total:P.placed.length
+    });
+  }
+  function load(){
+    const st=XW.storage.load(puzId); if(!st)return;
+    (st.found||[]).forEach(w=>found.add(w));
+    (st.hinted||[]).forEach(i=>hinted.add(i));
+    revealed=!!st.revealed; won=!!st.completed;
+    XW.timer.secs=st.elapsed||0;
+  }
+  load();
+
+  /* ---------- wiring ---------- */
+  XW.wireChrome({
+    title:()=>'Word Search',
+    assist:act=>{
+      if(act==='hint')return doHint();
+      if(act==='reveal')return doReveal();
+    },
+    menu:act=>{
+      if(act==='more')return backToArchive();
+      if(act==='howto')return XW.openOverlay('howtoOverlay');
+      if(act==='support')return XW.openOverlay('supportOverlay');
+      if(act==='save'){ save(); XW.dialog('Save','Your puzzle progress is saved.'); return; }
+      if(act==='restart'){
+        XW.dialog('Start Again','Are you sure you want to restart the puzzle?',()=>{
+          found.clear(); hinted.clear(); selWord=null; revealed=false; won=false;
+          XW.timer.reset(); XW.timer.stopped=false;
+          $('#timerPill').classList.remove('paused');
+          render();
+        },{ok:'Start again',cancel:'Cancel'});
+      }
+    }
+  });
+
+  /* core.js stores the confirm action but leaves the buttons to the game */
+  $('#dlgClose').onclick=()=>XW.closeOverlay($('#dialogOverlay'));
+  $('#dlgOk').onclick=()=>{
+    const a=XW.dlgAction; XW.closeOverlay($('#dialogOverlay')); if(a)a();
+  };
+
+  $('#settingsBtn').onclick=()=>XW.openOverlay('settingsOverlay');
+  $('#applySettings').onclick=()=>{
+    $('#timerPill').classList.toggle('collapsed',!$('#optTimerShown').checked);
+    XW.closeOverlay($('#settingsOverlay'));
+  };
+
+  /* clicking the timer stops it; Settings hides it */
+  $('#timerPill').addEventListener('click',()=>{
+    XW.timer.stopped=!XW.timer.stopped;
+    if(!XW.timer.stopped) XW.timer._last=Date.now();
+    $('#timerPill').classList.toggle('paused',XW.timer.stopped);
+    XW.announce(XW.timer.stopped?'Timer paused':'Timer running');
+  });
+
+  $('#printBtn').onclick=()=>XW.openOverlay('printOverlay');
+  $('#doPrint').onclick=()=>{
+    const mode=document.querySelector('[name="pmode"]:checked').value;
+    const keepFound=[...found], keepRevealed=revealed;
+    if(mode==='blank'){ found.clear(); revealed=false; }
+    if(mode==='solution'){ revealed=true; }
+    const pw=$('#printWords');
+    pw.innerHTML='';
+    P.placed.slice().sort((a,b)=>a.text.localeCompare(b.text)).forEach(p=>{
+      const li=document.createElement('li'); li.textContent=p.text; pw.appendChild(li);
+    });
+    render();
+    XW.closeOverlay($('#printOverlay'));
+    window.print();
+    found.clear(); keepFound.forEach(w=>found.add(w)); revealed=keepRevealed;
+    render();
+  };
+
+  $('#ticketNo').textContent=(function(){
+    let h=0; for(let i=0;i<puzId.length;i++) h=(Math.imul(h,31)+puzId.charCodeAt(i))>>>0;
+    const hex=n=>((n>>>0).toString(16)).slice(-7).padStart(7,'0');
+    return 'lat-'+hex(h)+'-'+hex(h^0x9e3779b9);
+  })();
+  $('#copyrightLine').textContent='© '+new Date().getFullYear()+' Tribune Content Agency, LLC';
+
+  /* "saved automatically every 10 seconds", as How To Play promises */
+  setInterval(save,10000);
+  XW.timer.onTick=s=>{ $('#timer').textContent=XW.fmtTime(s); };
+  XW.timer.start(XW.timer.secs);
+  if(won||revealed)XW.timer.stop();
+  XW.emit('game_start',{puzzleId:puzId});
+  render();
+  addEventListener('resize',render);
+  if(substituted) setTimeout(()=>XW.toast('“'+substituted+'” is not available yet — showing today'),400);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "schema": 2,
+  "_note": "Authored Word Search puzzles. A date listed here is played as authored; any date in the archive with no entry is generated from the date instead (see games.js -> wordsearch.generated.fallback). Drop a payload in puzzles/ and add a row here.",
+  "index": [
+    {
+      "id": "wordsearch-social-engineering",
+      "title": "Word Search",
+      "date": "2026-09-29",
+      "size": "15x15",
+      "cells": 225,
+      "author": "Matthew Luter",
+      "editor": "Patti Varol",
+      "status": "published",
+      "payloadUrl": "puzzles/wordsearch-social-engineering.json"
+    }
+  ]
+}

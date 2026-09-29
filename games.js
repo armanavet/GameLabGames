@@ -128,6 +128,14 @@
   const gridlockArt = gridlock(52, 'currentColor', 2);
   const gridlockRow = gridlock(35, ROW_INK, 1.4);
 
+  /* Word Search's row mark: the grid with a stroke through it, the same idea
+     as the hub card at the size the archive row needs. */
+  const searchRow =
+    '<svg viewBox="0 0 35 35" aria-hidden="true">' +
+    '<g fill="none" stroke="' + ROW_INK + '" stroke-width="1.4">' +
+    '<path d="M2.5 12h30M2.5 23h30M12 2.5v30M23 2.5v30"/></g>' +
+    '<path d="M6 29L29 6" stroke="#9d00ff" stroke-width="3" stroke-linecap="round"/></svg>';
+
   const nums = n => {
     let out = '<g fill="none" stroke="currentColor" stroke-width="1.8">' +
               '<rect x="4" y="4" width="44" height="44" rx="3"/>';
@@ -181,6 +189,8 @@
        and the board agree about what "right" looks like. */
     turnspell:  '#12a06b',
     gridlock:   '#a8763b',   // brass, for the window band
+    /* the purple a found word is banded with, so card and board agree */
+    wordsearch: '#9d00ff',
   };
 
   window.GAMES = {
@@ -235,10 +245,21 @@
       blurb: 'Reassemble a photograph, one piece at a time.',
       art: piece
     },
+    /* Word Search is HYBRID. An editor uploads themed puzzles by hand — that
+       is the path that carries a theme and a byline — and any date nobody
+       filled is generated from the date instead, so the archive never has a
+       hole in it. `generated.fallback` is what tells the archive to merge the
+       two rather than choose one. */
     wordsearch: {
       label: 'Word Search', short: 'Word Search',
       blurb: 'Find themed words hidden in the letters.',
-      art: search
+      archiveBlurb: 'An engaging new puzzle to conquer each day.',
+      player: 'wordsearch.html', archive: 'archive.html',
+      api: API, manifest: 'wordsearch.json',
+      generated: { days: 30, size: '15x15', cells: 225, fallback: true },
+      progressLabel: 'answered',
+      tint: TINT.wordsearch, tintInk: '#fff',
+      art: search, archiveArt: searchRow, live: true
     },
     /* Impossible Sudoku is the same player at a fixed level: no difficulty
        screen, straight to its own archive. `generated.level` pins it, and

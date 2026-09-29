@@ -116,6 +116,34 @@
                 size:gsize, cells:gcells, status:'published'});
     }
     man={schema:2, source:'generated', index:out};
+
+    /* HYBRID (Word Search): authored puzzles are the editorial path, and a
+       date nobody authored falls back to the generated one — so the archive
+       never has a hole in it. The authored index wins per DATE, which is the
+       only key the two sources share: a generated row is keyed
+       <game>-<date>, an authored one carries whatever id the editor gave it. */
+    if(G.generated.fallback){
+      const base=window.apiBase?window.apiBase(G):'';
+      const tryIndex=async u=>{
+        try{
+          const m=await (await fetch(u,{cache:'no-store'})).json();
+          return Array.isArray(m.index)?m:null;
+        }catch(e){ return null; }
+      };
+      /* Both sources are read and merged, not the first one that answers: a
+         backend with nothing uploaded for this game returns an index that is
+         a valid empty array, which would otherwise silently suppress the
+         static manifest and hide every hand-authored puzzle. */
+      const byDate={};
+      const collect=m=>{ if(!m)return;
+        m.index.forEach(r=>{ if(r.status!=='draft'&&r.date) byDate[r.date]=r; }); };
+      if(G.manifest) collect(await tryIndex(G.manifest));
+      if(base) collect(await tryIndex(base+'/api/index?game='+encodeURIComponent(GID)));
+      if(Object.keys(byDate).length){
+        man={schema:2, source:'hybrid',
+             index:out.map(g=>byDate[g.date]?Object.assign({},g,byDate[g.date]):g)};
+      }
+    }
   }
   const API=(!man&&window.apiBase)?window.apiBase(G):'';
   if(API){
@@ -182,7 +210,11 @@
     if(st.completed)return {kind:'completed',label:'Completed',pct:1};
     if(!filled)return null;
     const total=(typeof st.total==='number'&&st.total)?st.total:(it.cells||0);
-    return {kind:'started',label:'Started',pct:total?Math.min(1,filled/total):0.12};
+    const pct=total?Math.min(1,filled/total):0.12;
+    /* Word Search's archive frame labels a part-done puzzle "29% Answered"
+       rather than "Started"; the roster says which wording a game wants. */
+    const label=(G.progressLabel==='answered')?(Math.round(pct*100)+'% Answered'):'Started';
+    return {kind:'started',label:label,pct:pct};
   }
   const R=10, C=2*Math.PI*R;
   function ringSVG(s){
