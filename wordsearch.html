@@ -48,17 +48,27 @@
 
   /* ---------- word rail ----------
      WordCard 180x34 on a 38 pitch, r8, white with a #cccccc rule. */
-  .rail{display:flex;flex-direction:column;min-width:0;min-height:0}
+  /* Height comes from the board, set in JS: a grid row takes the height of
+     its tallest item, so letting the list stretch made the LIST decide the
+     row and it ran past the bottom of the grid. */
+  .rail{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
   /* Word Search's primary button is a pale purple pill, not the shared peach;
      scoped here so the crossword and sudoku keep theirs. */
   .btn.pri{background:#ebccff;color:#4a2060}
   .printopts .rdo{accent-color:#9d00ff}
   .printopts .rdo:checked{border-color:#9d00ff}
   .printopts .rdo:checked:after{background:#9d00ff}
-  .wlist{display:flex;flex-direction:column;gap:4px;overflow-y:auto;min-height:0;padding-right:4px}
+  /* The list is as tall as the board beside it, so the cards share that
+     height instead of stacking at a fixed 34 and leaving the bottom third of
+     the rail empty. They stop growing at 48 — past that a short word in a
+     tall box stops reading as a list — and fall back to 34 and a scrollbar
+     when a puzzle carries more words than the height can hold. */
+  .wlist{flex:1 1 auto;display:flex;flex-direction:column;gap:6px;overflow-y:auto;
+         min-height:0;padding-right:4px}
   .wlist::-webkit-scrollbar{width:4px}
   .wlist::-webkit-scrollbar-thumb{background:#e9ecee;border-radius:27px}
-  .wcard{display:flex;align-items:center;min-height:34px;padding:8px 12px;border-radius:8px;
+  .wcard{display:flex;align-items:center;flex:1 1 auto;min-height:34px;max-height:48px;
+         padding:8px 12px;border-radius:8px;
          border:1px solid #cccccc;background:#fff;cursor:pointer;text-align:left;
          font-family:'Inter',var(--font);font-size:13px;font-weight:500;color:#333333;
          transition:border-color .12s,background .12s}
@@ -85,6 +95,7 @@
     .rail{max-height:none}
     .wlist{max-height:34vh;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
            gap:6px;overflow-y:auto}
+    .wcard{flex:0 0 auto;max-height:none}
   }
   @media(min-width:721px){ .board{--board-max:calc(100vh - 190px)} }
 
@@ -402,7 +413,14 @@
     return el;
   }
 
+  /* the list gets exactly the board's height to share out */
+  function sizeRail(){
+    const h=board.getBoundingClientRect().height;
+    if(h) $('.rail').style.maxHeight=Math.round(h)+'px';
+  }
+
   function render(){
+    sizeRail();
     caps.innerHTML='';
     /* which cells a band covers, so a hint marker is not drawn under one */
     const covered=new Set();
