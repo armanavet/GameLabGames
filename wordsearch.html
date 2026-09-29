@@ -92,9 +92,13 @@
     .main{grid-template-columns:1fr;gap:14px;padding:14px 12px 0;align-content:start;flex:0 0 auto}
     .board{--board-max:min(100vw - 24px, 58vh)}
     .caption{font-size:12.5px;margin-top:10px}
-    .rail{max-height:none}
-    .wlist{max-height:34vh;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
-           gap:6px;overflow-y:auto}
+    /* stacked under the board, so the rail is content-sized and only the list
+       scrolls; the bottom padding keeps the last row clear of the edge */
+    .rail{max-height:none;overflow:visible}
+    .wlist{flex:0 0 auto;max-height:32vh;display:grid;
+           grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+           gap:6px;overflow-y:auto;padding-bottom:6px;
+           overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
     .wcard{flex:0 0 auto;max-height:none}
   }
   @media(min-width:721px){ .board{--board-max:calc(100vh - 190px)} }
@@ -413,10 +417,16 @@
     return el;
   }
 
-  /* the list gets exactly the board's height to share out */
+  /* The list gets exactly the board's height to share out — but only where it
+     sits BESIDE the board. Stacked under it on a phone, that cap pushed the
+     list's box past the bottom of the viewport, so its last card could not be
+     scrolled into view: the scroll area was off-screen, not short. */
+  const wideLayout=()=>!window.matchMedia||window.matchMedia('(min-width:721px)').matches;
   function sizeRail(){
+    const rail=$('.rail');
+    if(!wideLayout()){ rail.style.maxHeight=''; return; }
     const h=board.getBoundingClientRect().height;
-    if(h) $('.rail').style.maxHeight=Math.round(h)+'px';
+    if(h) rail.style.maxHeight=Math.round(h)+'px';
   }
 
   function render(){
