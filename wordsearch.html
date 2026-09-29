@@ -13,7 +13,10 @@
   /* Word Search — measured off the "Grid 1" frame: a 644 card with a 400
      board 30 in from the left and a 180 word rail beside it. */
   #app{max-width:1040px}
-  .main{display:grid;grid-template-columns:1fr 200px;gap:24px;padding:20px 24px 12px;
+  /* The frame gives the board 400 of a 644 card — about two thirds. Holding a
+     small fixed cap instead left the board marooned in white space, so it now
+     grows to whatever the column and the height allow. */
+  .main{display:grid;grid-template-columns:1fr 220px;gap:20px;padding:18px 22px 10px;
         flex:1 1 auto;min-height:0}
   .gridwrap{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
 
@@ -26,19 +29,19 @@
          touch-action:none;user-select:none;-webkit-user-select:none}
   .wc{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;
       font-family:'Inter',var(--font);font-weight:600;color:#333333;
-      font-size:clamp(9px,1.5vw,13px);cursor:pointer;-webkit-tap-highlight-color:transparent}
-  /* a letter covered by a found capsule reads white, which is how the solid
-     #9d00ff band in the design stays legible */
-  .wc.inword{color:#fff}
+      font-size:clamp(9px,1.5vw,15px);cursor:pointer;-webkit-tap-highlight-color:transparent}
   .wc.hinted{color:#9d00ff;font-weight:700}
   .wc.hinted::after{content:'';position:absolute;inset:12%;border-radius:50%;
         box-shadow:0 0 0 2px #ca78ff}
 
-  /* capsules live under the letters and over the board background */
+  /* Capsules live under the letters. The band is the same pale purple as a
+     found word's card, so the letters underneath stay dark and readable —
+     which is what the rendered design does, whatever the raw fill says. */
   .caps{position:absolute;inset:0;z-index:1;pointer-events:none}
   .cap{position:absolute;border-radius:999px;transform-origin:left center;
-       background:#9d00ff}
-  .cap.live{background:#ca78ff}
+       background:#ebccff}
+  /* a drag in progress is provisional, so it is outlined rather than filled */
+  .cap.live{background:#f6e9ff;box-shadow:inset 0 0 0 1.5px #ca78ff}
 
   .caption{margin:16px auto 0;max-width:520px;text-align:center;font-size:14px;
            line-height:1.5;color:#373737}
@@ -46,8 +49,12 @@
   /* ---------- word rail ----------
      WordCard 180x34 on a 38 pitch, r8, white with a #cccccc rule. */
   .rail{display:flex;flex-direction:column;min-width:0;min-height:0}
-  .railhead{font-size:13px;font-weight:700;color:#6f6f6f;margin:0 0 8px;text-transform:uppercase;
-            letter-spacing:.04em}
+  /* Word Search's primary button is a pale purple pill, not the shared peach;
+     scoped here so the crossword and sudoku keep theirs. */
+  .btn.pri{background:#ebccff;color:#4a2060}
+  .printopts .rdo{accent-color:#9d00ff}
+  .printopts .rdo:checked{border-color:#9d00ff}
+  .printopts .rdo:checked:after{background:#9d00ff}
   .wlist{display:flex;flex-direction:column;gap:4px;overflow-y:auto;min-height:0;padding-right:4px}
   .wlist::-webkit-scrollbar{width:4px}
   .wlist::-webkit-scrollbar-thumb{background:#e9ecee;border-radius:27px}
@@ -56,11 +63,12 @@
          font-family:'Inter',var(--font);font-size:13px;font-weight:500;color:#333333;
          transition:border-color .12s,background .12s}
   .wcard:hover{border-color:#ca78ff}
-  /* the design's "word selected" state: the card the reader is chasing */
-  .wcard.sel{border-color:#ca78ff;box-shadow:0 0 0 1px #ca78ff}
-  /* found: pale purple with the same green the archive uses for Completed */
-  .wcard.found{background:#ebccff;border-color:#1cb238;cursor:default}
-  .wcard.found .wtx{text-decoration:line-through;text-decoration-thickness:1px}
+  /* the card the reader is chasing: a purple rule, drawn as border + inset so
+     the row does not shift by a pixel when it is selected */
+  .wcard.sel{border-color:#ca78ff;box-shadow:inset 0 0 0 1px #ca78ff}
+  /* found: filled pale purple, the rule disappearing into the fill. The text
+     is NOT struck through — the green tick is what marks it done. */
+  .wcard.found{background:#ebccff;border-color:#ebccff;cursor:default}
   .wtx{flex:1;min-width:0}
   .wtick{width:16px;height:16px;flex:none;border-radius:18px;background:#1cb238;
          display:none;align-items:center;justify-content:center;margin-left:8px}
@@ -77,9 +85,8 @@
     .rail{max-height:none}
     .wlist{max-height:34vh;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
            gap:6px;overflow-y:auto}
-    .railhead{text-align:center}
   }
-  @media(min-width:721px){ .board{--board-max:min(460px,calc(100vh - 210px))} }
+  @media(min-width:721px){ .board{--board-max:calc(100vh - 190px)} }
 
   /* ---------- print ----------
      Three modes, as How To Play promises: empty, with found words, solution. */
@@ -87,8 +94,7 @@
     .topbar,.rail,.overlay,#toast{display:none !important}
     .main{display:block;padding:0}
     .board{--board-max:none;width:6.2in;margin:0 auto;border-color:#000}
-    .wc{font-size:13px;color:#000}
-    .wc.inword{color:#000}
+    .wc{font-size:var(--print-font,13px);color:#000}
     .cap{background:none !important;box-shadow:inset 0 0 0 1.5px #000}
     #printWords{display:block !important;margin:14px auto 0;max-width:6.2in;
                 columns:3;font-size:12px;line-height:1.7;color:#000}
@@ -106,8 +112,9 @@
       <ul id="printWords"></ul>
     </div>
 
+    <!-- the frame has no heading over the list: it starts level with the
+         board's first row, and the theme is named in the caption instead -->
     <div class="rail">
-      <div class="railhead" id="railhead">Words</div>
       <div class="wlist" id="wlist"></div>
     </div>
   </div>
@@ -171,10 +178,19 @@
     <div class="mhead"><h2 id="dlgH-print">Print</h2>
       <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
     <div class="mbody">
+      <!-- the frame offers two, not three: a blank grid or the solution -->
       <div class="printopts" role="radiogroup" aria-label="What to print">
-        <label><input type="radio" class="rdo sm" name="pmode" value="blank" checked/> Blank puzzle</label>
-        <label><input type="radio" class="rdo sm" name="pmode" value="found"/> Grid with found words</label>
+        <label><input type="radio" class="rdo sm" name="pmode" value="blank" checked/> Blank Puzzle</label>
         <label><input type="radio" class="rdo sm" name="pmode" value="solution"/> Solution</label>
+      </div>
+      <p><b>To fit this puzzle onto one page, try adjusting its font size:</b></p>
+      <div class="fontstep">
+        <button type="button" id="fsDown" aria-label="Smaller letters"><svg width="18" height="18" aria-hidden="true"><use href="icons.svg#i-minus"/></svg></button>
+        <div class="prev" id="fsPrev">Lorem ipsum dolor sit amet</div>
+        <button type="button" id="fsUp" aria-label="Larger letters"><svg width="18" height="18" aria-hidden="true"><use href="icons.svg#i-plus"/></svg></button>
+      </div>
+      <div class="notebox"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-info"/></svg>
+        <p><b>Please note:</b> Grid lines may not display properly in the print preview in some browsers, but they will print correctly.</p>
       </div>
     </div>
     <div class="mbtns"><button class="btn pri" type="button" id="doPrint">Print</button></div>
@@ -185,6 +201,7 @@
     <div class="mhead"><h2 id="dlgH-win">Congratulations!</h2>
       <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
     <div class="mbody center">
+      <div class="winicon"><svg width="34" height="34" aria-hidden="true"><use href="icons.svg#i-confetti"/></svg></div>
       <p>You completed this puzzle. Keep playing!</p>
       <div class="winstats">
         <div><span class="wl">Score</span><b id="winPct">100%</b></div>
@@ -192,7 +209,9 @@
       </div>
     </div>
     <div class="mbtns"><button class="btn pri" type="button" id="winShare">Share</button></div>
-    <p class="winnext"><button type="button" id="winMore">Discover Your New Challenge</button></p>
+    <p class="winnext">Discover Your New Challenge</p>
+    <!-- the frame promotes another game with a real card, not a link -->
+    <div class="promo" id="promo"></div>
   </div></div>
 
   <!-- shared confirm/notice -->
@@ -217,9 +236,22 @@
   .winstats div{display:flex;flex-direction:column;gap:2px}
   .winstats .wl{font-size:14px;font-weight:400;color:var(--ink)}
   .winstats b{font-size:28px;font-weight:700;color:var(--ink)}
-  .winnext{margin:14px 0 18px;text-align:center}
-  .winnext button{background:none;border:none;cursor:pointer;font-family:var(--font);
-        font-size:14px;font-weight:700;color:var(--ink);text-decoration:underline}
+  .winicon{display:flex;justify-content:center;margin:2px 0 -2px}
+  /* Score and Time are divided by a rule in the frame */
+  .winstats > div + div{border-left:1px solid var(--panel-line);padding-left:56px}
+  .winstats{gap:0}
+  .winstats > div{padding:0 28px}
+  .winnext{margin:12px 0 10px;text-align:center;font-size:14px;font-weight:700;color:var(--ink)}
+  .promo{width:min(196px,100%);margin:0 auto 4px;border-radius:12px;overflow:hidden;
+         background:#fff;border:1px solid #e8e8e8}
+  .promo .pthumb{height:86px;display:flex;align-items:center;justify-content:center}
+  .promo .pthumb svg{width:44px;height:44px}
+  .promo .pbody{padding:10px 12px 12px;text-align:left}
+  .promo h3{margin:0 0 3px;font-size:15px;font-weight:700;color:var(--ink)}
+  .promo p{margin:0 0 9px;font-size:12px;font-weight:400;color:#6b6b6b;line-height:1.35}
+  .promo .pgo{display:flex;align-items:center;justify-content:center;height:32px;width:100%;
+        border-radius:20px;border:1.5px solid var(--ink);background:#fff;cursor:pointer;
+        font-family:var(--font);font-size:13px;font-weight:700;color:var(--ink)}
 </style>
 
 <!-- games.js first: core.js reads window.GAMES to resolve the roster entry -->
@@ -287,7 +319,6 @@
     const by=[P.author?'by '+P.author:'',P.editor?'Ed. '+P.editor:''].filter(Boolean).join(' / ');
     $('#caption').textContent='L. A. Times '+(G.label||'Word Search')+
       (P.theme?' · '+P.theme:'')+' · '+when+(by?' · '+by:'');
-    $('#railhead').textContent=P.theme||'Words';
   })();
 
   /* ---------- state ---------- */
@@ -373,6 +404,7 @@
 
   function render(){
     caps.innerHTML='';
+    /* which cells a band covers, so a hint marker is not drawn under one */
     const covered=new Set();
     P.placed.forEach(p=>{
       if(!found.has(p.letters)&&!revealed)return;
@@ -381,7 +413,6 @@
     });
     if(drag&&drag.cells) caps.appendChild(capFor(drag.pseudo,'live'));
     cellEls.forEach((el,i)=>{
-      el.classList.toggle('inword',covered.has(i));
       el.classList.toggle('hinted',hinted.has(i)&&!covered.has(i));
     });
     P.placed.forEach(p=>{
@@ -488,7 +519,30 @@
     XW.announce('Solved in '+XW.fmtTime(XW.timer.secs)+'.');
     save();
   }
-  $('#winMore').onclick=()=>backToArchive();
+  /* "Discover Your New Challenge": a card for another live game, chosen by
+     the date so it is stable for everyone on a given day. The roster supplies
+     the label, blurb, art and colour, so this file names no game itself. */
+  (function(){
+    const ids=Object.keys(window.GAMES||{}).filter(k=>{
+      const g=window.GAMES[k]; return g&&g.live&&!g.hidden&&k!==XW.gameId; });
+    if(!ids.length)return;
+    let h=0; for(let i=0;i<iso.length;i++) h=(Math.imul(h,31)+iso.charCodeAt(i))>>>0;
+    const pid=ids[h%ids.length], pg=window.GAMES[pid];
+    const box=$('#promo');
+    const thumb=document.createElement('div');
+    thumb.className='pthumb';
+    thumb.style.background=pg.tint||'var(--band)';
+    if(pg.tintInk) thumb.style.color=pg.tintInk;
+    thumb.innerHTML=pg.art||'';
+    const body=document.createElement('div'); body.className='pbody';
+    const h3=document.createElement('h3'); h3.textContent=pg.label;
+    const bl=document.createElement('p'); bl.textContent=pg.blurb||'';
+    const go=document.createElement('button');
+    go.type='button'; go.className='pgo'; go.textContent='Play';
+    go.onclick=()=>XW.navigate({gameId:pid});
+    body.appendChild(h3); body.appendChild(bl); body.appendChild(go);
+    box.appendChild(thumb); box.appendChild(body);
+  })();
   $('#winShare').onclick=()=>{
     XW.share('copy',XW.shareUrl(),XW.shareText('Word Search'));
     XW.emit('share_clicked',{target:'copy'});
@@ -555,6 +609,14 @@
   });
 
   $('#printBtn').onclick=()=>XW.openOverlay('printOverlay');
+  /* the stepper sets the printed letter size, as the crossword's does */
+  let printFont=13;
+  const paintFs=()=>{ $('#fsPrev').style.fontSize=printFont+'px';
+                      document.documentElement.style.setProperty('--print-font',printFont+'px'); };
+  $('#fsDown').onclick=()=>{ printFont=Math.max(7,printFont-1); paintFs(); };
+  $('#fsUp').onclick=()=>{ printFont=Math.min(22,printFont+1); paintFs(); };
+  paintFs();
+
   $('#doPrint').onclick=()=>{
     const mode=document.querySelector('[name="pmode"]:checked').value;
     const keepFound=[...found], keepRevealed=revealed;
