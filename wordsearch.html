@@ -501,23 +501,35 @@
   }
   function doReveal(){
     XW.dialog('Reveal all answers','Are you sure you want to reveal all the answers?',()=>{
-      revealed=true; XW.timer.stop();
+      revealed=true;
       XW.emit('assist_used',{action:'reveal_grid'});
       render();
+      /* Reveal ends the puzzle, so it ends it properly — the same way sudoku's
+         Reveal grid does. Without this the game just went quiet. */
+      finish();
     },{ok:'Ok',cancel:'Close'});
   }
 
   /* ---------- win ---------- */
+  /* One ending for both routes. Score is the share the reader found for
+     themselves, so a revealed puzzle does not claim 100% — it is the same
+     percentage the archive shows against a part-done puzzle. */
+  function finish(){
+    if(won)return;
+    won=true; XW.timer.stop();
+    const pct=P.placed.length?Math.round(found.size/P.placed.length*100):0;
+    $('#winPct').textContent=pct+'%';
+    $('#winTime').textContent=XW.fmtTime(XW.timer.secs);
+    XW.openOverlay('winOverlay');
+    XW.emit('game_complete',{puzzleId:puzId,seconds:XW.timer.secs,percent:pct,revealed:revealed});
+    XW.announce(revealed?('Answers revealed. '+pct+' per cent found.')
+                        :('Solved in '+XW.fmtTime(XW.timer.secs)+'.'));
+    save();
+  }
   function checkWin(){
     if(won||revealed)return;
     if(P.placed.some(p=>!found.has(p.letters)))return;
-    won=true; XW.timer.stop();
-    $('#winPct').textContent='100%';
-    $('#winTime').textContent=XW.fmtTime(XW.timer.secs);
-    XW.openOverlay('winOverlay');
-    XW.emit('game_complete',{puzzleId:puzId,seconds:XW.timer.secs});
-    XW.announce('Solved in '+XW.fmtTime(XW.timer.secs)+'.');
-    save();
+    finish();
   }
   /* "Discover Your New Challenge": a card for another live game, chosen by
      the date so it is stable for everyone on a given day. The roster supplies
