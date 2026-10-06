@@ -52,6 +52,9 @@
      its tallest item, so letting the list stretch made the LIST decide the
      row and it ran past the bottom of the grid. */
   .rail{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+  /* print lives in the toolbar on desktop and in the menu on mobile */
+  @media(min-width:721px){ #mainMenu [data-mact="print"]{display:none} }
+  @media(max-width:720px){ #printBtn{display:none} }
   /* Word Search's primary button is a pale purple pill, not the shared peach;
      scoped here so the crossword and sudoku keep theirs. */
   .btn.pri{background:#ebccff;color:#4a2060}
@@ -90,16 +93,23 @@
      games use: board first, list below, both full width. */
   @media(max-width:720px){
     .main{grid-template-columns:1fr;gap:14px;padding:14px 12px 0;align-content:start;flex:0 0 auto}
-    .board{--board-max:min(100vw - 24px, 58vh)}
-    .caption{font-size:12.5px;margin-top:10px}
-    /* stacked under the board, so the rail is content-sized and only the list
-       scrolls; the bottom padding keeps the last row clear of the edge */
+    .board{--board-max:min(100vw - 28px, 52vh)}
+    /* Stacked under the board: three columns, wrapping, with a lone last
+       card centred — which is flex-wrap, not a grid, where a single item
+       would sit in the first column instead. The rail is content-sized and
+       only the list scrolls. */
     .rail{max-height:none;overflow:visible}
-    .wlist{flex:0 0 auto;max-height:32vh;display:grid;
-           grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
-           gap:6px;overflow-y:auto;padding-bottom:6px;
+    /* flex-direction MUST be reset: the desktop list is a column, and
+       wrapping a column makes new columns — the cards took a third of the
+       HEIGHT each and marched off the right-hand edge. */
+    .wlist{flex:0 0 auto;max-height:34vh;display:flex;flex-direction:row;flex-wrap:wrap;
+           justify-content:center;align-content:flex-start;gap:8px;
+           overflow-y:auto;padding-bottom:6px;
            overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-    .wcard{flex:0 0 auto;max-height:none}
+    .wcard{flex:0 0 calc((100% - 16px)/3);max-height:none;min-height:44px;
+           padding:8px 10px;line-height:1.25}
+    /* the frame drops the caption on mobile — the board needs the height */
+    .caption{display:none}
   }
   @media(min-width:721px){ .board{--board-max:calc(100vh - 190px)} }
 
@@ -348,13 +358,16 @@
      Reveal. "Ask a friend" is in the frame too but needs the accounts half of
      the platform, so it is deliberately absent. */
   XW.mountToolbar($('#app'),{
+    /* The mobile frame has no print button in the bar, so Print moves into
+        the menu there. Both exist and each is hidden where the other serves:
+        a CSS swap rather than two toolbars built at different widths. */
     left:['timer','print'],
     /* assistIcon is the mobile stand-in: core.css hides the Assist pill below
        720px, so without it Hint and Reveal are unreachable on a phone. */
     right:['settings','assistIcon','menu','assist'],
     assistItems:[['hint','Hint'],['reveal','Reveal']],
     menuItems:[['more','More puzzles'],['howto','How to play'],['save','Save'],
-               ['restart','Start again'],['support','Support']]
+               ['print','Print'],['restart','Start again'],['support','Support']]
   });
   $('#app').insertBefore($('.topbar'),$('.main'));
 
@@ -616,6 +629,7 @@
       if(act==='more')return backToArchive();
       if(act==='howto')return XW.openOverlay('howtoOverlay');
       if(act==='support')return XW.openOverlay('supportOverlay');
+      if(act==='print')return XW.openOverlay('printOverlay');
       if(act==='save'){ save(); XW.dialog('Save','Your puzzle progress is saved.'); return; }
       if(act==='restart'){
         XW.dialog('Start Again','Are you sure you want to restart the puzzle?',()=>{

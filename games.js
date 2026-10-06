@@ -128,13 +128,21 @@
   const gridlockArt = gridlock(52, 'currentColor', 2);
   const gridlockRow = gridlock(35, ROW_INK, 1.4);
 
-  /* Word Search's row mark: the grid with a stroke through it, the same idea
-     as the hub card at the size the archive row needs. */
-  const searchRow =
-    '<svg viewBox="0 0 35 35" aria-hidden="true">' +
-    '<g fill="none" stroke="' + ROW_INK + '" stroke-width="1.4">' +
-    '<path d="M2.5 12h30M2.5 23h30M12 2.5v30M23 2.5v30"/></g>' +
-    '<path d="M6 29L29 6" stroke="#9d00ff" stroke-width="3" stroke-linecap="round"/></svg>';
+  /* Word Search's row mark: a field of letters with two found words crossing
+     it. The bands go down first so the letters read over them, which is what
+     the board does too. */
+  const searchRow = (() => {
+    const at = [8.5, 15, 21.5, 28];
+    let dots = '';
+    at.forEach(y => at.forEach(x => {
+      dots += '<circle cx="' + x + '" cy="' + y + '" r="1.5"/>';
+    }));
+    return '<svg viewBox="0 0 35 35" aria-hidden="true">' +
+      '<g stroke-width="5.5" stroke-linecap="round" fill="none">' +
+      '<path d="M8 24.5L27.5 9.5" stroke="#fdd97c"/>' +
+      '<path d="M10.5 12.5L28 18.5" stroke="#b1cdfb"/></g>' +
+      '<g fill="' + ROW_INK + '">' + dots + '</g></svg>';
+  })();
 
   const nums = n => {
     let out = '<g fill="none" stroke="currentColor" stroke-width="1.8">' +
