@@ -30,21 +30,103 @@
 
   .cell{position:absolute;left:0;top:0;width:var(--cw);height:var(--chh);
         padding:var(--pad);box-sizing:border-box;
-        transform:translate(calc(var(--bx) + var(--dx,0px)), calc(var(--by) + var(--dy,0px)));
+        transform:translate(calc(var(--bx) + var(--dx,0px)), calc(var(--by) + var(--dy,0px)))
+                  scale(var(--sc,1));
         transition:transform .17s cubic-bezier(.3,.05,.2,1)}
   .cell.nofx{transition:none}
+  /* Everything outside the window is context, so it is set smaller and
+     lighter; the five cells being read are larger, darker and heavier. The
+     word you are building should be the first thing the eye lands on. */
   .cell span{display:flex;align-items:center;justify-content:center;width:100%;height:100%;
-             background:#fff;border:1px solid #d8d8d8;border-radius:6px;
-             font-weight:700;font-size:calc(var(--chh) * .46);line-height:1;
-             color:#6f6f6f;transition:background .18s,border-color .18s,color .18s}
+             background:#fff;border:1px solid #e4e4e4;border-radius:6px;
+             font-weight:600;font-size:calc(var(--chh) * .41);line-height:1;
+             color:#8c8c8c;
+             transition:background .18s,border-color .18s,color .18s,font-size .18s}
   /* the window: the middle row's inner five cells, banded in brass */
-  .cell.win span{border-color:var(--brass);border-width:2px;color:var(--ink3)}
+  .cell.win span{border-color:var(--brass);border-width:2px;color:var(--ink3);
+             background:#fffaf0;font-weight:800;font-size:calc(var(--chh) * .56);
+             box-shadow:0 1px 3px rgba(0,0,0,.07)}
   .cell.exact span{background:var(--ok);border-color:#0a7d4c;color:#fff}
   .cell.moved span{background:var(--amber2);border-color:#96670c;color:#fff}
   /* Ghosts sit just off each end of every line carrying the letter that wraps
      in. They are clipped away at rest and only ever seen mid-slide — without
      them a sliding line would show a gap where the wrap should be. */
   .cell.ghost span{opacity:.95}
+
+  /* ---------- the cube row ----------
+     Anna's note asks for a cube that comes apart into the board, and a board
+     that gathers back into a cube. Gridlock's own shape is a five-letter
+     window, so the cube here is a 5x1 -- one Rubik's row. On a win the board
+     folds in on that row, every tile sliding onto the cube it sits above or
+     beside and tucking away behind it; then the five cubes turn into place
+     and spell the word.
+
+     The faces are built for the turn and thrown away afterwards, and the fold
+     is driven through the same --dx/--dy the sliding uses, so nothing in the
+     playing path has to know any of it happened. */
+  /* a long throw, so the row of cubes is drawn nearly square-on rather than
+     fanning out towards the ends */
+  .stage{perspective:2600px}
+  .boardwrap{transform-style:preserve-3d;
+             transition:transform .5s cubic-bezier(.22,.68,.28,1)}
+  .board{transform-style:preserve-3d}
+  /* Three faces of every cube in view at once, each with its own letter: a
+     square seen straight on is a tile, a lettered top and end make it a
+     block. The turn is written Y then X so the row's own axis is the one that
+     stays level -- the other order swings the whole row off the horizontal.
+     The X turn is negative so the reader is looking down onto the row and it
+     is the TOP faces that come into view beside the fronts. */
+  .boardwrap.cubing{transform:rotateY(-16deg) rotateX(-22deg) scale(1.2)}
+  /* Every step between the tilted wrapper and a cube face has to keep its
+     depth, or the cube is flattened into the board's plane on the way out and
+     the faces come through as hairlines. The board's clip is what breaks it
+     hardest: overflow is a grouping property, and a group is flat. Nothing
+     needs clipping while the board is folded -- the ghosts are already gone. */
+  .boardwrap.cubing .midrow,
+  .boardwrap.cubing .board,
+  .boardwrap.cubing .cell{transform-style:preserve-3d}
+  .boardwrap.cubing .board{overflow:visible}
+  .boardwrap.cubing .colarrows,
+  .boardwrap.cubing .rowarrows,
+  .boardwrap.cubing .cell.ghost{opacity:0;pointer-events:none;transition:opacity .28s}
+  /* a tile on its way in, and a tile that has arrived */
+  .cell.folding{transition:transform .42s cubic-bezier(.33,.72,.3,1),
+                           opacity .42s ease}
+  .cell.tucked{opacity:0;--sc:.5}
+  .boardwrap.nofade .cell.folding{transition:none}
+
+  /* Six faces, each with a letter, so the thing that turns is a cube rather
+     than a card: the tilt keeps the top and the near end in view throughout. */
+  .cube{position:relative;width:100%;height:100%;transform-style:preserve-3d;
+        transition:transform .62s cubic-bezier(.33,.72,.3,1)}
+  .cube>b{position:absolute;left:0;top:0;width:100%;height:100%;
+          display:flex;align-items:center;justify-content:center;
+          background:#fffaf0;border:2px solid var(--brass);border-radius:5px;
+          font-weight:800;font-size:calc(var(--chh) * .56);color:var(--ink3);
+          backface-visibility:hidden}
+  /* tinted apart like stickers, so a turn is something you watch happen
+     rather than a letter that changes */
+  /* the faces turned away from the reader are foreshortened, so their
+     letters are set darker to stay readable at an angle */
+  .cube>b.s1,.cube>b.s2,.cube>b.s3,.cube>b.e1,.cube>b.e2{color:#4a4238}
+  .cube>b.s1{background:#f7ead1;border-color:#d9bf8c}
+  .cube>b.s2{background:#ffeccb;border-color:#e2c48f}
+  .cube>b.s3{background:#f1e3c4;border-color:#d4b784}
+  .cube>b.e1{background:#f4e7cd;border-color:#d8bd8a}
+  .cube>b.e2{background:#eee0c0;border-color:#d2b47f}
+
+  @keyframes gl-cuberow{
+    0%  {transform:rotateY(-16deg) rotateX(-22deg) scale(1.2)}
+    32% {transform:rotateY(-16deg) rotateX(-22deg) scale(1.28)}
+    64% {transform:rotateY(-16deg) rotateX(-22deg) scale(1.16)}
+    100%{transform:rotateY(-16deg) rotateX(-22deg) scale(1.2)}
+  }
+  .boardwrap.cubebounce{animation:gl-cuberow .7s cubic-bezier(.3,.7,.3,1)}
+  @media(prefers-reduced-motion:reduce){
+    .boardwrap,.cube,.cell.folding{transition:none}
+    .boardwrap.cubing{transform:none}
+    .boardwrap.cubebounce{animation:none}
+  }
 
   .colarrows{display:flex;gap:0}
   .colarrows button{width:var(--cw);display:flex;align-items:center;justify-content:center}
@@ -55,10 +137,26 @@
   .abtn:hover{color:var(--ink)}
   .abtn:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:4px}
 
+  /* the rank earned for the number of guesses it took */
+  .rank{margin:2px 0 0;font-size:26px;font-weight:900;color:var(--brass);
+        letter-spacing:.01em}
+
   /* ---------- guess row + submit ---------- */
   .btn.sub{height:38px;padding:0 22px}
-  .hintline{font-size:14px;color:#8a8a8a;text-align:center;margin:0;min-height:2.6em;line-height:1.3}
-  .hintline b{color:var(--ink)}
+  /* This line is the game talking back — whether the window is a word, why a
+     guess was refused, how many are left. At 14px grey it read as a caption
+     and went unnoticed, so it is now a band of its own. */
+  .hintline{font-size:15.5px;color:var(--ink);text-align:center;margin:0 auto;
+            min-height:2.6em;line-height:1.35;font-weight:500;
+            /* NOT flex: it makes the <b> a flex item and eats the space after
+               it, so "NSHBR is not a word" ran together */
+            display:block;
+            max-width:30rem;padding:11px 16px;border-radius:10px;
+            background:#f6f1e7;border:1px solid #e8dcc4}
+  .hintline b{color:var(--ink3);font-weight:800}
+  /* a refusal should look different from a nudge */
+  .hintline.warn{background:#fdecea;border-color:#f3c7c1;color:#8a2a20}
+  .hintline.good{background:#e9f7ef;border-color:#bfe6cf;color:#0a6b41}
   .caption{font-size:12.5px;color:#8a8a8a;text-align:center;margin:0}
 
   /* ---------- history + alphabet ---------- */
@@ -74,8 +172,8 @@
   .hrow i.exact{background:var(--ok);border-color:#0a7d4c;color:#fff}
   .hrow i.moved{background:var(--amber2);border-color:#96670c;color:#fff}
   .hrow.empty i{background:#fafafa;border-style:dashed;border-color:#e4e4e4}
-  .alpha{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}
-  .alpha b{width:30px;height:34px;border-radius:4px;background:#f2f2f2;color:#6f6f6f;
+  .alphaGONE{display:none}
+  .alphaGONE b{
            display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
   .alpha b.exact{background:var(--ok);color:#fff}
   .alpha b.moved{background:var(--amber2);color:#fff}
@@ -116,7 +214,7 @@
         <div class="colarrows" id="colDown"></div>
       </div>
       <p class="hintline" id="hintline">&mdash;</p>
-      <div><button class="btn pri sub" type="button" id="submitBtn">Submit guess</button></div>
+      <div><button class="btn pri sub" type="button" id="submitBtn">Submit</button></div>
       <p class="caption" id="caption"></p>
     </div>
 
@@ -125,16 +223,11 @@
         <div class="railhead">Guesses</div>
         <div class="hist" id="hist"></div>
       </div>
-      <div class="rbox">
-        <div class="railhead">Letters</div>
-        <div class="alpha" id="alpha"></div>
-      </div>
     </div>
   </div>
 
   <div id="mobiledock">
     <div class="hist" id="histMob"></div>
-    <div class="alpha" id="alphaMob"></div>
   </div>
 
   <!-- Settings -->
@@ -186,6 +279,7 @@
       <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
     <div class="mbody center">
       <p id="winLine">&mdash;</p>
+      <p class="rank" id="winRank"></p>
       <div class="stats">
         <div class="stat"><span>Guesses</span><b id="winGuesses">0</b></div>
         <div class="stat"><span>Time</span><b id="winTime">&mdash;</b></div>
@@ -373,20 +467,11 @@
       }
     });
   }
-  function paintAlpha(){
-    const st=S.letterStatus(guesses,P.target);
-    [$('#alpha'),$('#alphaMob')].forEach(host=>{
-      if(!host) return;
-      host.innerHTML='';
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(ch=>{
-        const b=document.createElement('b');
-        b.textContent=ch;
-        if(st[ch]) b.className=st[ch];
-        b.setAttribute('aria-label',ch+(st[ch]?', '+st[ch]:''));
-        host.appendChild(b);
-      });
-    });
-  }
+  /* The alphabet panel is gone (Anna's note). The marked guesses above it
+     already carry which letters are in and out, and it was the one piece of
+     the rail nobody was reading. S.letterStatus stays in the engine for
+     whatever wants it next. */
+  function paintAlpha(){}
 
   /* ---------- sliding ----------
      One place decides which cells belong to a line and how far they are
@@ -402,6 +487,158 @@
     }
     return out;
   }
+  /* ---------- the cube row ----------
+     Each window tile becomes a cube turning about the horizontal axis of the
+     row, like one row of a Rubik's cube twisted on its side. The letter the
+     tile already shows goes on the FRONT face, and every turn is a whole
+     number of revolutions, so whatever tumbles past in between, a cube can
+     only ever land on the word. The other five faces carry letters taken from
+     the board, so the tumble looks like this puzzle rather than noise. */
+  const wrapEl=$('#boardwrap');
+  const reducedMotion=()=>window.matchMedia&&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const SPIN=620, STEP=110, TURNS=2, FOLD=420;
+
+  /* Opening and closing are the same pieces moving opposite ways, so a
+     straggling timer from one can undo the other half-way through — the
+     opening clearing up on top of a win, for one. Each run takes a number
+     and its own timers drop out as soon as a newer run starts. */
+  let fxRun=0;
+  function fxStart(){ return ++fxRun; }
+  function fxAfter(run,ms,fn){ setTimeout(()=>{ if(run===fxRun) fn(); },ms); }
+  const winCells=()=>{
+    const out=[];
+    for(let k=0;k<S.LEN;k++) out.push(cellEls[S.at(S.WIN_ROW,S.WIN_COL+k)]);
+    return out;
+  };
+
+  function buildCubes(cells){
+    dropCubes();                       /* never two sets of faces at once */
+    const cs=getComputedStyle(wrapEl);
+    const chh=parseFloat(cs.getPropertyValue('--chh'))||40;
+    const pad=parseFloat(cs.getPropertyValue('--pad'))||2;
+    const d=(chh-2*pad)/2;              /* half a face: the cube's half-depth */
+    const pool=grid.join('');
+    return cells.map((cell,k)=>{
+      const letter=cell.firstChild.textContent;
+      const cube=document.createElement('div');
+      cube.className='cube';
+      const face=(ch,cls,t)=>{
+        const f=document.createElement('b');
+        f.textContent=ch; if(cls) f.className=cls;
+        f.style.transform=t+' translateZ('+d.toFixed(1)+'px)';
+        cube.appendChild(f);
+      };
+      /* the front, then the three that turn past it */
+      [letter,
+       pool[(k*7+3)%pool.length],
+       pool[(k*11+5)%pool.length],
+       pool[(k*13+9)%pool.length]]
+        .forEach((ch,i)=>face(ch,i?'s'+i:'','rotateX('+(i*90)+'deg)'));
+      /* and the two ends, which the tilt brings into view as well */
+      face(pool[(k*17+2)%pool.length],'e1','rotateY(-90deg)');
+      face(pool[(k*19+7)%pool.length],'e2','rotateY(90deg)');
+      cell.firstChild.style.display='none';
+      cell.appendChild(cube);
+      return cube;
+    });
+  }
+
+  /* Where every other tile goes when the board folds: onto the cube in its
+     own column, or the nearest one if the column is outside the window. The
+     tiles already beside the row go first and the outer ranks fold in behind
+     them, which is the order paper folds in and reads as the board closing
+     rather than as everything dropping at once. */
+  function foldPlan(cells){
+    const cs=getComputedStyle(wrapEl);
+    const cw=parseFloat(cs.getPropertyValue('--cw'))||40;
+    const chh=parseFloat(cs.getPropertyValue('--chh'))||40;
+    const out=[];
+    for(let r=0;r<S.ROWS;r++) for(let c=0;c<S.COLS;c++){
+      const el=cellEls[S.at(r,c)];
+      if(cells.indexOf(el)>=0) continue;
+      const tc=Math.min(Math.max(c,S.WIN_COL),S.WIN_COL+S.LEN-1);
+      const dist=Math.abs(S.WIN_ROW-r)+Math.abs(tc-c);
+      out.push({el:el, dx:(tc-c)*cw, dy:(S.WIN_ROW-r)*chh,
+                delay:Math.max(0,dist-1)*55});
+    }
+    return out;
+  }
+  function applyFold(items,on,reverse){
+    const maxD=Math.max.apply(null,items.map(i=>i.delay));
+    items.forEach(({el,dx,dy,delay})=>{
+      el.classList.add('folding');
+      el.style.transitionDelay=(reverse?(maxD-delay):delay)+'ms';
+      el.style.setProperty('--dx',(on?dx:0)+'px');
+      el.style.setProperty('--dy',(on?dy:0)+'px');
+      el.classList.toggle('tucked',on);
+    });
+    return maxD+FOLD;
+  }
+  function unfoldDone(items){
+    items.forEach(({el})=>{
+      el.classList.remove('folding','tucked');
+      el.style.transitionDelay='';
+      el.style.removeProperty('--dx'); el.style.removeProperty('--dy');
+    });
+  }
+  function dropCubes(){
+    boardEl.querySelectorAll('.cube').forEach(c=>c.remove());
+    cellEls.forEach(el=>{ el.firstChild.style.display=''; });
+  }
+
+  /* the board arrives folded into the cube row, which turns and opens out */
+  function openingCubes(){
+    if(reducedMotion()) return;
+    const run=fxStart();
+    const cells=winCells(), cubes=buildCubes(cells), items=foldPlan(cells);
+    /* seat the folded board and the wound-up cubes with nothing animating, or
+       the board would fold shut before it opened */
+    wrapEl.classList.add('nofade','cubing');
+    applyFold(items,true,false);
+    cubes.forEach(c=>{ c.style.transition='none';
+                       c.style.transform='rotateX('+(-360*TURNS)+'deg)'; });
+    void wrapEl.offsetWidth;
+    wrapEl.classList.remove('nofade');
+    cubes.forEach((c,k)=>{ c.style.transition='';
+                           c.style.transitionDelay=(k*STEP)+'ms';
+                           c.style.transform='rotateX(0deg)'; });
+    const turned=(cells.length-1)*STEP+SPIN;
+    fxAfter(run,turned-160,()=>{ applyFold(items,false,true);
+                                 wrapEl.classList.remove('cubing'); });
+    fxAfter(run,turned+FOLD+320,()=>{ unfoldDone(items); dropCubes(); });
+  }
+
+  /* the solved board folds in on the row, which turns into the word */
+  function closingCubes(done){
+    if(reducedMotion()){ if(done)done(); return; }
+    const run=fxStart();
+    const cells=winCells(), cubes=buildCubes(cells), items=foldPlan(cells);
+    wrapEl.classList.add('cubing');
+    const folded=applyFold(items,true,false);
+    fxAfter(run,folded-80,()=>cubes.forEach((c,k)=>{
+      c.style.transitionDelay=(k*STEP)+'ms';
+      c.style.transform='rotateX('+(-360*TURNS)+'deg)';
+    }));
+    const settled=folded-80+(cells.length-1)*STEP+SPIN;
+    fxAfter(run,settled,()=>wrapEl.classList.add('cubebounce'));
+    fxAfter(run,settled+340,()=>{ if(done)done(); });
+    /* the board stays folded under the dialog; it opens again on close */
+    wrapEl.__fold=items;
+  }
+
+  /* open the board back out when the reader dismisses the dialog, so they are
+     not left with five cubes where the grid should be */
+  XW.onOverlayClose=()=>{
+    if(!wrapEl.classList.contains('cubing')) return;
+    const run=fxStart();
+    const items=wrapEl.__fold||foldPlan(winCells());
+    wrapEl.classList.remove('cubebounce','cubing');
+    const opened=applyFold(items,false,true);
+    fxAfter(run,opened+120,()=>{ unfoldDone(items); dropCubes(); });
+  };
+
   function setOffset(kind,idx,pxVal,instant){
     const prop=kind==='c'?'--dy':'--dx';
     lineCells(kind,idx).forEach(el=>{
@@ -509,15 +746,26 @@
     $('#submitBtn').disabled=true;
     setTimeout(paint,900);
   }
+  /* A placeholder ladder, by guess count, until the real scoring lands —
+     the fewer guesses it took, the better the word. */
+  const RANKS=['Genius','Brilliant','Excellent','Great','Nice','Good'];
+  const rankFor=n=>RANKS[Math.min(Math.max(n,1),RANKS.length)-1];
+
   function finish(good){
     XW.timer.stop();
     $('#dlgH-win').textContent=good?'Congratulations!':'Out of guesses';
     $('#winLine').textContent=good?'You found “'+P.target+'”.':'The word was “'+P.target+'”.';
+    const rank=good?rankFor(guesses.length):'';
+    $('#winRank').textContent=rank;
+    $('#winRank').style.display=rank?'block':'none';
     $('#winGuesses').textContent=String(guesses.length);
     $('#winTime').textContent=XW.fmtTime(XW.timer.secs);
-    setTimeout(()=>XW.openOverlay('winOverlay'),700);
+    if(good) closingCubes(()=>XW.openOverlay('winOverlay'));
+    else setTimeout(()=>XW.openOverlay('winOverlay'),700);
     XW.emit('game_complete',{puzzleId:puzId,seconds:XW.timer.secs,guesses:guesses.length,solved:good});
-    XW.announce(good?'Solved.':'Out of guesses. The word was '+P.target+'.');
+    XW.announce(good?('Solved. '+rank+', in '+guesses.length+
+                      (guesses.length===1?' guess.':' guesses.'))
+                    :('Out of guesses. The word was '+P.target+'.'));
   }
   $('#submitBtn').onclick=submit;
   document.addEventListener('keydown',e=>{
@@ -601,6 +849,8 @@
   XW.timer.start(XW.timer.secs);
   if(won||lost) XW.timer.stop();
   XW.emit('game_start',{puzzleId:puzId,engine:'gridlock'});
+  /* only on a fresh board — reopening a puzzle mid-solve should not replay it */
+  if(!guesses.length && !won && !lost) requestAnimationFrame(openingCubes);
   if(substituted) setTimeout(()=>XW.toast('“'+substituted+'” is not available yet — showing today'),400);
   setInterval(save,10000);
 })();
