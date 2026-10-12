@@ -53,79 +53,82 @@
      them a sliding line would show a gap where the wrap should be. */
   .cell.ghost span{opacity:.95}
 
-  /* ---------- the cube row ----------
-     Anna's note asks for a cube that comes apart into the board, and a board
-     that gathers back into a cube. Gridlock's own shape is a five-letter
-     window, so the cube here is a 5x1 -- one Rubik's row. On a win the board
-     folds in on that row, every tile sliding onto the cube it sits above or
-     beside and tucking away behind it; then the five cubes turn into place
-     and spell the word.
+  /* ---------- the cube ----------
+     The board IS the cube. Every one of its 35 tiles becomes a sticker on a
+     3x3x3 Rubik's cube -- Turnspell's cube, driven by Turnspell's engine --
+     and gets there by folding, the way a paper net does: the middle 3x3 stays
+     put as the front face, the columns either side fold back round its edges
+     to make the sides, and the top and bottom rows fold over to make the top
+     and bottom. A tile never changes its letter on the way; it is the same
+     element, carried by a hinge.
 
-     The faces are built for the turn and thrown away afterwards, and the fold
-     is driven through the same --dx/--dy the sliding uses, so nothing in the
-     playing path has to know any of it happened. */
-  /* a long throw, so the row of cubes is drawn nearly square-on rather than
-     fanning out towards the ends */
-  .stage{perspective:2600px}
-  .boardwrap{transform-style:preserve-3d;
-             transition:transform .5s cubic-bezier(.22,.68,.28,1)}
-  .board{transform-style:preserve-3d}
-  /* Three faces of every cube in view at once, each with its own letter: a
-     square seen straight on is a tile, a lettered top and end make it a
-     block. The turn is written Y then X so the row's own axis is the one that
-     stays level -- the other order swings the whole row off the horizontal.
-     The X turn is negative so the reader is looking down onto the row and it
-     is the TOP faces that come into view beside the fronts. */
-  .boardwrap.cubing{transform:rotateY(-16deg) rotateX(-22deg) scale(1.2)}
-  /* Every step between the tilted wrapper and a cube face has to keep its
-     depth, or the cube is flattened into the board's plane on the way out and
-     the faces come through as hairlines. The board's clip is what breaks it
-     hardest: overflow is a grouping property, and a group is flat. Nothing
-     needs clipping while the board is folded -- the ghosts are already gone. */
+     The 19 stickers the board does not cover are the back of the cube. They
+     come into view as it closes, and they are where the word's letters wait:
+     the turns after the fold bring them together on one face.
+
+     The cube is built for the animation and thrown away after it, so nothing
+     in the playing path knows it exists. */
+  .stage{perspective:1500px}
+  .boardwrap{transform-style:preserve-3d}
+  /* Every level between the stage and a sticker keeps its depth while the
+     cube is up, or the cube is flattened into the board's plane. The board's
+     clip breaks it hardest -- overflow is a grouping property, and a group is
+     flat -- and nothing needs clipping meanwhile. */
   .boardwrap.cubing .midrow,
-  .boardwrap.cubing .board,
-  .boardwrap.cubing .cell{transform-style:preserve-3d}
+  .boardwrap.cubing .board{transform-style:preserve-3d}
   .boardwrap.cubing .board{overflow:visible}
   .boardwrap.cubing .colarrows,
-  .boardwrap.cubing .rowarrows,
-  .boardwrap.cubing .cell.ghost{opacity:0;pointer-events:none;transition:opacity .28s}
-  /* a tile on its way in, and a tile that has arrived */
-  .cell.folding{transition:transform .42s cubic-bezier(.33,.72,.3,1),
-                           opacity .42s ease}
-  .cell.tucked{opacity:0;--sc:.5}
-  .boardwrap.nofade .cell.folding{transition:none}
+  .boardwrap.cubing .rowarrows{opacity:0;pointer-events:none;transition:opacity .28s}
+  .boardwrap.nofade .colarrows,
+  .boardwrap.nofade .rowarrows{transition:none}
+  /* The ghosts go at once, not on a fade: they were only ever hidden by the
+     board's clip, and the clip comes off the moment the cube goes up. */
+  .boardwrap.cubing .cell.ghost{visibility:hidden}
+  /* a tile whose sticker is standing exactly where it is */
+  .cell.swapped{visibility:hidden}
 
-  /* Six faces, each with a letter, so the thing that turns is a cube rather
-     than a card: the tilt keeps the top and the near end in view throughout. */
-  .cube{position:relative;width:100%;height:100%;transform-style:preserve-3d;
-        transition:transform .62s cubic-bezier(.33,.72,.3,1)}
-  .cube>b{position:absolute;left:0;top:0;width:100%;height:100%;
-          display:flex;align-items:center;justify-content:center;
-          background:#fffaf0;border:2px solid var(--brass);border-radius:5px;
-          font-weight:800;font-size:calc(var(--chh) * .56);color:var(--ink3);
-          backface-visibility:hidden}
-  /* tinted apart like stickers, so a turn is something you watch happen
-     rather than a letter that changes */
-  /* the faces turned away from the reader are foreshortened, so their
-     letters are set darker to stay readable at an angle */
-  .cube>b.s1,.cube>b.s2,.cube>b.s3,.cube>b.e1,.cube>b.e2{color:#4a4238}
-  .cube>b.s1{background:#f7ead1;border-color:#d9bf8c}
-  .cube>b.s2{background:#ffeccb;border-color:#e2c48f}
-  .cube>b.s3{background:#f1e3c4;border-color:#d4b784}
-  .cube>b.e1{background:#f4e7cd;border-color:#d8bd8a}
-  .cube>b.e2{background:#eee0c0;border-color:#d2b47f}
+  .gcube{position:absolute;left:50%;top:50%;width:0;height:0;z-index:4;
+         transform-style:preserve-3d;pointer-events:none;
+         transition:transform .76s cubic-bezier(.4,.1,.25,1)}
+  /* One sticker, one plane -- Turnspell's construction. Flat, a sticker is a
+     board tile, looked at exactly as the tile under it: clear gap, white
+     tile, hairline. Closed, the gap goes dark and narrows, which seals the
+     shell. A turn is a rotation prepended to the placement (--lr). */
+  .gst{position:absolute;left:0;top:0;
+       margin:calc(var(--cw) / -2) 0 0 calc(var(--cw) / -2);
+       width:var(--cw);height:var(--cw);box-sizing:border-box;
+       display:flex;align-items:center;justify-content:center;
+       font-weight:600;font-size:calc(var(--chh) * .41);line-height:1;color:#8c8c8c;
+       background:transparent;backface-visibility:hidden;
+       transform:var(--lr,rotate(0deg)) var(--pl);
+       transition:transform .52s cubic-bezier(.33,.72,.3,1),
+                  opacity .32s ease,background .3s ease,color .3s ease}
+  /* the fold itself: slower, and eased at both ends like a hand doing it */
+  .gcube.folding .gst{transition:transform .72s cubic-bezier(.45,.05,.25,1),
+                                 opacity .4s ease,background .4s ease,color .4s ease}
+  /* no transition on the tile's inset or corners: eight longhands apiece,
+     across 54 stickers, for a seam nobody can see change */
+  .gst::before{content:'';position:absolute;inset:var(--pad);
+               background:#fff;border:1px solid #e4e4e4;border-radius:6px;
+               box-sizing:border-box}
+  .gst .ch{position:relative;z-index:1}
+  .gst .num{position:absolute;z-index:1;top:calc(var(--cw) * .1);left:calc(var(--cw) * .13);
+            font-size:calc(var(--cw) * .2);font-weight:700;line-height:1;color:#a07a35}
+  /* the window row on the board, and the word once the cube has made it:
+     brass, larger, darker */
+  .gst.word{font-weight:800;font-size:calc(var(--chh) * .56);color:var(--ink3)}
+  .gst.word::before{background:#fffaf0;border:2px solid var(--brass)}
+  .gst.hid{opacity:0}
+  .gcube.closed .gst{background:#2f2a24}
+  .gcube.closed .gst::before{inset:calc(var(--cw) * .045);border-radius:4px}
+  .gcube.closed .gst:not(.word){color:#5f5f5f;font-weight:700}
+  /* a face turn: quicker, and on its own curve */
+  .gcube .gst.turning{transition:transform .3s cubic-bezier(.4,.05,.2,1)}
+  /* specific enough to beat the fold's own transition rule */
+  .gcube.nofx,.gcube.nofx .gst,.gcube .gst.nofx{transition:none}
 
-  @keyframes gl-cuberow{
-    0%  {transform:rotateY(-16deg) rotateX(-22deg) scale(1.2)}
-    32% {transform:rotateY(-16deg) rotateX(-22deg) scale(1.28)}
-    64% {transform:rotateY(-16deg) rotateX(-22deg) scale(1.16)}
-    100%{transform:rotateY(-16deg) rotateX(-22deg) scale(1.2)}
-  }
-  .boardwrap.cubebounce{animation:gl-cuberow .7s cubic-bezier(.3,.7,.3,1)}
   @media(prefers-reduced-motion:reduce){
-    .boardwrap,.cube,.cell.folding{transition:none}
-    .boardwrap.cubing{transform:none}
-    .boardwrap.cubebounce{animation:none}
+    .gcube,.gst,.gcube.folding .gst{transition:none}
   }
 
   .colarrows{display:flex;gap:0}
@@ -308,6 +311,7 @@
 <script src="core.js"></script>
 <script src="words-5.js"></script>
 <script src="gridlock-engine.js"></script>
+<script src="turnspell-engine.js"></script>
 <script>
 (function(){
   'use strict';
@@ -487,156 +491,390 @@
     }
     return out;
   }
-  /* ---------- the cube row ----------
-     Each window tile becomes a cube turning about the horizontal axis of the
-     row, like one row of a Rubik's cube twisted on its side. The letter the
-     tile already shows goes on the FRONT face, and every turn is a whole
-     number of revolutions, so whatever tumbles past in between, a cube can
-     only ever land on the word. The other five faces carry letters taken from
-     the board, so the tumble looks like this puzzle rather than noise. */
+  /* ---------- the cube ----------
+     Turnspell's engine does the cube: 54 stickers, each knowing its cubie
+     (p) and its outward normal (n), and a face turn is a quarter turn of
+     both. A sticker's resting placement is read straight off those vectors,
+     exactly as Turnspell places its own, so the picture and the model cannot
+     disagree.
+
+     Folding is the other half. A board tile's sticker carries a HINGE: a
+     point on the edge it folds about, an angle, and its offset from that
+     edge. Flat, the angle is 0 and it lies where its tile lies; folded, the
+     angle is 90 and it lies where the cube puts it. Both are written as the
+     same five functions with only the numbers changed, so the browser turns
+     the hinge rather than blending two matrices -- which would send the
+     stickers flying across on diagonals instead of folding. */
+  const T=window.TURNSPELL;
   const wrapEl=$('#boardwrap');
   const reducedMotion=()=>window.matchMedia&&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const SPIN=620, STEP=110, TURNS=2, FOLD=420;
+  const FOLDMS=720, FLAP=160, TILT=760, TURNMS=300, GAP=90, PRESENT=700;
+  /* the word's cells on its face, in the order it is read: top corners, the
+     centre, bottom corners -- the same cells as Turnspell's slots, but with
+     the middle letter in the middle */
+  const WORD_CELLS=[0,2,4,6,8];
+  const FACE_ROT={F:'',B:'rotateY(180deg)',R:'rotateY(90deg)',
+                  L:'rotateY(-90deg)',U:'rotateX(90deg)',D:'rotateX(-90deg)'};
+  /* a clockwise turn of each face, in the cube's CSS space -- Turnspell's */
+  const LAYER_AXIS={U:'Y',D:'Y',R:'X',L:'X',F:'Z',B:'Z'};
+  const LAYER_DEG={U:-90,D:90,R:90,L:-90,F:90,B:-90};
+  /* the whole-cube turn that brings a face round to the reader */
+  const PRESENT_ROT={F:[0,0],R:[0,-90],L:[0,90],U:[-90,0],D:[90,0],B:[0,180]};
+
+  const cubeCw=()=>parseFloat(getComputedStyle(wrapEl).getPropertyValue('--cw'))||40;
+  const pxs=v=>v.toFixed(1)+'px';
+  /* The cube's pose, always the same six functions so any two poses tween
+     cleanly. The size is scale3d, not scale: scale() is two-dimensional and
+     leaves depth alone, which made the cube a box a fifth shallower than it
+     was wide -- and once a top or bottom face was turned to the front, that
+     missing depth showed as missing height. It sits half a cube back, so that the front face -- the board's
+     middle block -- is in the board's own plane and the folded faces go back
+     behind it, as a real fold would. */
+  const pose=(tx,ty,face,sc)=>{
+    const pr=PRESENT_ROT[face||'F'];
+    return 'translateZ('+pxs(-1.5*cubeCw())+') rotateX('+tx+'deg) rotateY('+ty+'deg) '+
+           'rotateX('+pr[0]+'deg) rotateY('+pr[1]+'deg) scale3d('+sc+','+sc+','+sc+')';
+  };
+  const SQUARE=()=>pose(0,0,'F',1);
+  const TILTED=f=>pose(-20,-28,f,1.25);
 
   /* Opening and closing are the same pieces moving opposite ways, so a
-     straggling timer from one can undo the other half-way through — the
-     opening clearing up on top of a win, for one. Each run takes a number
-     and its own timers drop out as soon as a newer run starts. */
-  let fxRun=0;
-  function fxStart(){ return ++fxRun; }
-  function fxAfter(run,ms,fn){ setTimeout(()=>{ if(run===fxRun) fn(); },ms); }
-  const winCells=()=>{
-    const out=[];
-    for(let k=0;k<S.LEN;k++) out.push(cellEls[S.at(S.WIN_ROW,S.WIN_COL+k)]);
-    return out;
-  };
+     straggling timer from one can undo the other. Each run takes a number
+     and its timers drop out once a newer run starts. */
+  let fxRun=0, cubeEl=null, cstate=null, stEls=[];
+  const fxStart=()=>++fxRun;
+  const fxAfter=(run,ms,fn)=>setTimeout(()=>{ if(run===fxRun) fn(); },ms);
+  const faceOf=n=>T.faceOfNormal(n);
 
-  function buildCubes(cells){
-    dropCubes();                       /* never two sets of faces at once */
-    const cs=getComputedStyle(wrapEl);
-    const chh=parseFloat(cs.getPropertyValue('--chh'))||40;
-    const pad=parseFloat(cs.getPropertyValue('--pad'))||2;
-    const d=(chh-2*pad)/2;              /* half a face: the cube's half-depth */
-    const pool=grid.join('');
-    return cells.map((cell,k)=>{
-      const letter=cell.firstChild.textContent;
-      const cube=document.createElement('div');
-      cube.className='cube';
-      const face=(ch,cls,t)=>{
-        const f=document.createElement('b');
-        f.textContent=ch; if(cls) f.className=cls;
-        f.style.transform=t+' translateZ('+d.toFixed(1)+'px)';
-        cube.appendChild(f);
-      };
-      /* the front, then the three that turn past it */
-      [letter,
-       pool[(k*7+3)%pool.length],
-       pool[(k*11+5)%pool.length],
-       pool[(k*13+9)%pool.length]]
-        .forEach((ch,i)=>face(ch,i?'s'+i:'','rotateX('+(i*90)+'deg)'));
-      /* and the two ends, which the tilt brings into view as well */
-      face(pool[(k*17+2)%pool.length],'e1','rotateY(-90deg)');
-      face(pool[(k*19+7)%pool.length],'e2','rotateY(90deg)');
-      cell.firstChild.style.display='none';
-      cell.appendChild(cube);
-      return cube;
-    });
-  }
-
-  /* Where every other tile goes when the board folds: onto the cube in its
-     own column, or the nearest one if the column is outside the window. The
-     tiles already beside the row go first and the outer ranks fold in behind
-     them, which is the order paper folds in and reads as the board closing
-     rather than as everything dropping at once. */
-  function foldPlan(cells){
-    const cs=getComputedStyle(wrapEl);
-    const cw=parseFloat(cs.getPropertyValue('--cw'))||40;
-    const chh=parseFloat(cs.getPropertyValue('--chh'))||40;
-    const out=[];
+  /* ---- the fold: where each board tile goes, and the hinge it goes by ----
+     The board is 7x5 and a face is 3x3. The middle 3x3 is the front face.
+     Columns 0-1 fold back about the front face's left edge onto the left
+     face, nearest columns first; columns 5-6 likewise onto the right. Rows 0
+     and 4 fold over its top and bottom edges onto the top and bottom faces.
+     Their four end tiles each side have nothing beneath them once the sides
+     are back, so they fold over with their row and tuck in along the top or
+     bottom face's side columns. Faces are given as Turnspell's (col,row). */
+  function foldMap(){
+    const cw=cubeCw(), h=1.5*cw, out=[];
+    const mc=(S.COLS-1)/2, mr=(S.ROWS-1)/2;
     for(let r=0;r<S.ROWS;r++) for(let c=0;c<S.COLS;c++){
-      const el=cellEls[S.at(r,c)];
-      if(cells.indexOf(el)>=0) continue;
-      const tc=Math.min(Math.max(c,S.WIN_COL),S.WIN_COL+S.LEN-1);
-      const dist=Math.abs(S.WIN_ROW-r)+Math.abs(tc-c);
-      out.push({el:el, dx:(tc-c)*cw, dy:(S.WIN_ROW-r)*chh,
-                delay:Math.max(0,dist-1)*55});
+      const fx=(c-mc)*cw, fy=(r-mr)*cw;
+      const m={r:r,c:c,from:[fx,fy]};
+      const band=r>=1&&r<=3;
+      if(band&&c>=2&&c<=4){
+        Object.assign(m,{f:'F',col:c-2,row:r-1,H:[0,0,h],ax:'',ang:0,to:[fx,fy],delay:0});
+      }else if(band&&c<=1){
+        Object.assign(m,{f:'L',col:c+1,row:r-1,H:[-h,0,h],ax:'Y',ang:-90,
+                         from:[fx+h,fy],to:[fx+h,fy],delay:0});
+      }else if(band&&c>=5){
+        Object.assign(m,{f:'R',col:c-5,row:r-1,H:[h,0,h],ax:'Y',ang:90,
+                         from:[fx-h,fy],to:[fx-h,fy],delay:0});
+      }else{
+        const top=(r===0), sg=top?-1:1;          /* -1 up, +1 down (CSS y) */
+        const f=top?'U':'D';
+        let col,row,to;
+        if(c>=2&&c<=4){ col=c-2; row=top?2:0; to=[fx,fy-sg*h]; }
+        else{
+          const side=c<2?-1:1, far=(c===0||c===6);
+          col=side<0?0:2;
+          row=top?(far?0:1):(far?2:1);
+          to=[side*cw, sg*(far?2.5:1.5)*cw];
+        }
+        Object.assign(m,{f:f,col:col,row:row,H:[0,sg*h,h],ax:'X',ang:top?90:-90,
+                         from:[fx,fy-sg*h],to:to,delay:FLAP});
+      }
+      out.push(m);
     }
     return out;
   }
-  function applyFold(items,on,reverse){
-    const maxD=Math.max.apply(null,items.map(i=>i.delay));
-    items.forEach(({el,dx,dy,delay})=>{
-      el.classList.add('folding');
-      el.style.transitionDelay=(reverse?(maxD-delay):delay)+'ms';
-      el.style.setProperty('--dx',(on?dx:0)+'px');
-      el.style.setProperty('--dy',(on?dy:0)+'px');
-      el.classList.toggle('tucked',on);
-    });
-    return maxD+FOLD;
+  function hinge(m,closed){
+    const A=(closed&&m.ax==='X')?m.ang:0, B=(closed&&m.ax==='Y')?m.ang:0;
+    const o=closed?m.to:m.from;
+    return 'translate3d('+pxs(m.H[0])+','+pxs(m.H[1])+','+pxs(m.H[2])+') '+
+           'rotateX('+A+'deg) rotateY('+B+'deg) translate3d('+pxs(o[0])+','+pxs(o[1])+',0px)';
   }
-  function unfoldDone(items){
-    items.forEach(({el})=>{
-      el.classList.remove('folding','tucked');
-      el.style.transitionDelay='';
-      el.style.removeProperty('--dx'); el.style.removeProperty('--dy');
-    });
-  }
-  function dropCubes(){
-    boardEl.querySelectorAll('.cube').forEach(c=>c.remove());
-    cellEls.forEach(el=>{ el.firstChild.style.display=''; });
+  /* where Turnspell would put this sticker at rest */
+  function placement(st){
+    const f=faceOf(st.n), cell=T.cellOf(f,st.p);
+    const row=Math.floor(cell/3), col=cell%3, cw=cubeCw();
+    return (FACE_ROT[f]?FACE_ROT[f]+' ':'')+'translateZ('+pxs(1.5*cw)+') '+
+           'translate('+pxs((col-1)*cw)+','+pxs((row-1)*cw)+')';
   }
 
-  /* the board arrives folded into the cube row, which turns and opens out */
-  function openingCubes(){
-    if(reducedMotion()) return;
+  /* ---- planting the word ----
+     A short run of face turns is chosen, seeded by the puzzle so everyone
+     sees the same, after which the word's five slots on some face -- the
+     corners and the centre, read like text so the third letter is the one in
+     the middle (S.P / E / N.D) -- are all stickers the board does NOT
+     cover, so the word's letters can wait there from the start without any
+     tile's letter changing, and most of them arrive from other faces. */
+  function seeded(str){
+    let h=2166136261>>>0;
+    for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619)>>>0; }
+    return ()=>{ h=(h+0x6D2B79F5)>>>0; let t=h;
+      t=Math.imul(t^(t>>>15),1|t); t=(t+Math.imul(t^(t>>>7),61|t))^t;
+      return ((t^(t>>>14))>>>0)/4294967296; };
+  }
+  function randomTurns(rng,n){
+    const seq=[];
+    while(seq.length<n){
+      const m=T.MOVES[Math.floor(rng()*T.MOVES.length)];
+      if(seq.length&&seq[seq.length-1][0]===m[0]) continue;
+      seq.push(m);
+    }
+    return seq;
+  }
+  const slotsOn=(state,f)=>{
+    const by={};
+    state.forEach(st=>{ if(faceOf(st.n)===f) by[T.cellOf(f,st.p)]=st; });
+    return WORD_CELLS.map(k=>by[k]);
+  };
+  function coveredIds(){
+    const home=T.identity(), byCell={}, out=new Set();
+    home.forEach(st=>{ const f=faceOf(st.n); byCell[f+T.cellOf(f,st.p)]=st.id; });
+    foldMap().forEach(m=>out.add(byCell[m.f+(m.row*3+m.col)]));
+    return out;
+  }
+  function planWin(){
+    const rng=seeded('gridlock-cube:'+puzId), home=T.identity(), covered=coveredIds();
+    for(const len of [3,4,2]){
+      for(let tries=0;tries<3000;tries++){
+        const seq=randomTurns(rng,len), end=T.play(T.identity(),seq);
+        for(const f of ['U','B','D']){
+          const slots=slotsOn(end,f);
+          if(slots.some(st=>covered.has(st.id))) continue;
+          if(slots.filter(st=>faceOf(home[st.id].n)!==f).length<3) continue;
+          return {seq:seq, face:f, ids:slots.map(st=>st.id)};
+        }
+      }
+    }
+    return null;
+  }
+
+  /* ---- building ----
+     Board tiles' stickers take their tile's letter; `extra` maps uncovered
+     sticker ids to letters of our own; the rest are drawn from the board. */
+  function buildCube(extra){
+    dropCube();
+    const pool=grid.join('');
+    cstate=T.identity(); stEls=[];
+    const byCell={};
+    cstate.forEach((st,i)=>{ const f=faceOf(st.n); byCell[f+T.cellOf(f,st.p)]=i; });
+    const tileOf={};
+    foldMap().forEach(m=>{ tileOf[byCell[m.f+(m.row*3+m.col)]]=m; });
+    cubeEl=document.createElement('div');
+    cubeEl.className='gcube';
+    cstate.forEach((st,i)=>{
+      const el=document.createElement('div');
+      el.className='gst';
+      const num=document.createElement('span'); num.className='num';
+      const ch=document.createElement('span'); ch.className='ch';
+      el.appendChild(num); el.appendChild(ch);
+      const m=tileOf[i]||null;
+      st.ch=m?grid[S.at(m.r,m.c)]:((extra&&extra[i])||pool[(i*13+7)%pool.length]);
+      ch.textContent=st.ch;
+      el._fold=m;
+      el._win=!!m&&m.r===S.WIN_ROW&&m.c>=S.WIN_COL&&m.c<S.WIN_COL+S.LEN;
+      cubeEl.appendChild(el); stEls.push(el);
+    });
+    boardEl.appendChild(cubeEl);
+  }
+  function dropCube(){ if(cubeEl){ cubeEl.remove(); cubeEl=null; cstate=null; stEls=[]; } }
+
+  const instantly=fn=>{
+    cubeEl.classList.add('nofx');
+    stEls.forEach(el=>el.classList.add('nofx'));
+    fn();
+    void cubeEl.offsetWidth;
+    cubeEl.classList.remove('nofx');
+    stEls.forEach(el=>el.classList.remove('nofx'));
+  };
+
+  /* Lay the stickers flat (each tile's over its tile, the back of the cube
+     hidden) or folded (each on its hinge at 90). The sides go first and the
+     top and bottom rows close over after them. */
+  function fold(closed,reverse){
+    cubeEl.classList.add('folding');
+    cubeEl.classList.toggle('closed',closed);
+    stEls.forEach((el,i)=>{
+      const m=el._fold;
+      if(m){
+        el.style.transitionDelay=(reverse?FLAP-m.delay:m.delay)+'ms';
+        el.style.setProperty('--pl',hinge(m,closed));
+        el.classList.toggle('word',!closed&&el._win);
+      }else{
+        el.style.transitionDelay=(closed?FLAP+120:0)+'ms';
+        el.style.setProperty('--pl',placement(cstate[i]));
+        el.classList.toggle('hid',!closed);
+      }
+    });
+  }
+  /* A folded tile's hinge pose and its resting placement are the same place
+     written two ways; swapping between them is invisible, and lets the turns
+     work from placements and the fold from hinges. */
+  function toPlacements(){
+    instantly(()=>{
+      cubeEl.classList.remove('folding');
+      stEls.forEach((el,i)=>{ el.style.transitionDelay='0ms';
+                              el.style.setProperty('--pl',placement(cstate[i])); });
+    });
+  }
+  function toHinges(){
+    instantly(()=>stEls.forEach(el=>{ if(el._fold) el.style.setProperty('--pl',hinge(el._fold,true)); }));
+  }
+
+  /* One face turn: rotate the layer, then commit -- apply the move to the
+     model, re-place the stickers at rest with no transition, and clear the
+     rotation. The same three steps as Turnspell's own turn. */
+  function turnFace(move,done){
+    const f=move[0], a=T.axisOf(f), sg=T.signOf(f), prime=move.length>1;
+    const css='rotate'+LAYER_AXIS[f]+'('+(prime?-LAYER_DEG[f]:LAYER_DEG[f])+'deg)';
+    const hit=[];
+    cstate.forEach((st,i)=>{ if(st.p[a]===sg) hit.push(i); });
+    hit.forEach(i=>{ stEls[i].style.transitionDelay='0ms'; stEls[i].classList.add('turning');
+                     stEls[i].style.setProperty('--lr',css); });
+    setTimeout(()=>{
+      if(!cubeEl) return;
+      T.applyMove(cstate,move);
+      hit.forEach(i=>{
+        const el=stEls[i];
+        el.classList.add('nofx');
+        el.style.setProperty('--pl',placement(cstate[i]));
+        el.style.setProperty('--lr','rotate(0deg)');
+      });
+      void cubeEl.offsetWidth;
+      hit.forEach(i=>stEls[i].classList.remove('nofx','turning'));
+      if(done) done();
+    },TURNMS+20);
+  }
+  function turnAll(run,seq,done){
+    const step=k=>{
+      if(run!==fxRun) return;
+      if(k>=seq.length){ if(done) done(); return; }
+      turnFace(seq[k],()=>fxAfter(run,GAP,()=>step(k+1)));
+    };
+    step(0);
+  }
+
+  /* the word's five stickers light up and take their numbers */
+  function lightWord(ids,on){
+    ids.forEach((id,k)=>{
+      const el=stEls[id];
+      el.classList.toggle('word',on);
+      el.querySelector('.num').textContent=on?String(k+1):'';
+    });
+  }
+
+  const swapBoard=on=>cellEls.forEach(el=>el.classList.toggle('swapped',on));
+
+  /* The stage carries the perspective, and its default viewpoint is the
+     stage's own middle -- which, with the hint, the button and the caption
+     below the board, sat over 200px under the cube. Seen from that far
+     below, the cube's downward tilt was cancelled out and its top flattened,
+     so it looked squashed. While the cube is up, the camera is put level
+     with the middle of the board instead. */
+  const stageEl=$('.stage');
+  function aimCamera(on){
+    if(!on){ stageEl.style.perspectiveOrigin=''; return; }
+    const st=stageEl.getBoundingClientRect(), b=boardEl.getBoundingClientRect();
+    stageEl.style.perspectiveOrigin=
+      (b.left+b.width/2-st.left).toFixed(1)+'px '+(b.top+b.height/2-st.top).toFixed(1)+'px';
+  }
+
+  function settle(){
+    aimCamera(false);
+    swapBoard(false);
+    wrapEl.classList.remove('cubing');
+    dropCube();
+  }
+
+  /* square up and unfold flat over the board, then hand back to it -- the
+     end of the opening, and of putting the board back after the dialog */
+  function unfoldToBoard(run){
+    toHinges();
+    cubeEl.style.transition='transform '+TILT+'ms cubic-bezier(.4,.1,.25,1)';
+    cubeEl.style.transform=SQUARE();
+    fxAfter(run,80,()=>fold(false,true));
+    fxAfter(run,80+FLAP+FOLDMS+60,settle);
+  }
+
+  /* A fresh board arrives as a scrambled cube made of its own tiles, which
+     turns itself straight and unfolds into the board. */
+  function openingCube(){
+    /* The opening is queued on a frame, and a page that is not being drawn
+       -- a background tab -- does not get one until it is shown. By then the
+       reader may have solved it, and an opening starting then would take
+       over from the closing and swallow the win screen. So it checks again
+       here, not only when it was queued. */
+    if(reducedMotion()||document.hidden||won||lost||!T) return;
     const run=fxStart();
-    const cells=winCells(), cubes=buildCubes(cells), items=foldPlan(cells);
-    /* seat the folded board and the wound-up cubes with nothing animating, or
-       the board would fold shut before it opened */
+    const seq=randomTurns(seeded('gridlock-open:'+puzId),3);
+    buildCube(null);
+    aimCamera(true);
     wrapEl.classList.add('nofade','cubing');
-    applyFold(items,true,false);
-    cubes.forEach(c=>{ c.style.transition='none';
-                       c.style.transform='rotateX('+(-360*TURNS)+'deg)'; });
-    void wrapEl.offsetWidth;
+    swapBoard(true);
+    instantly(()=>{
+      cubeEl.classList.add('closed');
+      cubeEl.style.transform=TILTED('F');
+      /* scramble the model by the inverse, so playing `seq` brings it home */
+      T.play(cstate,T.inverseOf(seq));
+      stEls.forEach((el,i)=>el.style.setProperty('--pl',placement(cstate[i])));
+    });
     wrapEl.classList.remove('nofade');
-    cubes.forEach((c,k)=>{ c.style.transition='';
-                           c.style.transitionDelay=(k*STEP)+'ms';
-                           c.style.transform='rotateX(0deg)'; });
-    const turned=(cells.length-1)*STEP+SPIN;
-    fxAfter(run,turned-160,()=>{ applyFold(items,false,true);
-                                 wrapEl.classList.remove('cubing'); });
-    fxAfter(run,turned+FOLD+320,()=>{ unfoldDone(items); dropCubes(); });
+    fxAfter(run,220,()=>turnAll(run,seq,()=>unfoldToBoard(run)));
   }
 
-  /* the solved board folds in on the row, which turns into the word */
-  function closingCubes(done){
-    if(reducedMotion()){ if(done)done(); return; }
+  /* A solved board folds up into the cube, turning towards the reader as it
+     closes; the cube makes the turns that bring the word together on one
+     face, that face comes round to the front and lights up, and then the
+     dialog. */
+  let winPlan=null;
+  function closingCube(done){
+    /* nothing to watch in a hidden tab, and its timers are throttled there */
+    if(reducedMotion()||document.hidden||!T){ if(done)done(); return; }
+    winPlan=planWin();
+    if(!winPlan){ if(done)done(); return; }
     const run=fxStart();
-    const cells=winCells(), cubes=buildCubes(cells), items=foldPlan(cells);
+    const extra={};
+    winPlan.ids.forEach((id,k)=>{ extra[id]=P.target[k]; });
+    buildCube(extra);
+    aimCamera(true);
     wrapEl.classList.add('cubing');
-    const folded=applyFold(items,true,false);
-    fxAfter(run,folded-80,()=>cubes.forEach((c,k)=>{
-      c.style.transitionDelay=(k*STEP)+'ms';
-      c.style.transform='rotateX('+(-360*TURNS)+'deg)';
-    }));
-    const settled=folded-80+(cells.length-1)*STEP+SPIN;
-    fxAfter(run,settled,()=>wrapEl.classList.add('cubebounce'));
-    fxAfter(run,settled+340,()=>{ if(done)done(); });
-    /* the board stays folded under the dialog; it opens again on close */
-    wrapEl.__fold=items;
+    /* flat, each sticker exactly over its tile -- then the tiles go */
+    instantly(()=>{
+      cubeEl.style.transform=SQUARE();
+      fold(false,false);
+      cubeEl.classList.remove('folding');
+    });
+    swapBoard(true);
+    fxAfter(run,40,()=>{
+      fold(true,false);
+      cubeEl.style.transition='transform '+TILT+'ms cubic-bezier(.4,.1,.25,1) '+(FLAP+80)+'ms';
+      cubeEl.style.transform=TILTED('F');
+    });
+    const closed=40+FLAP+FOLDMS+80;
+    fxAfter(run,closed,()=>{
+      toPlacements();
+      turnAll(run,winPlan.seq,()=>{
+        cubeEl.style.transition='transform '+PRESENT+'ms cubic-bezier(.3,.62,.2,1)';
+        cubeEl.style.transform=TILTED(winPlan.face);
+        fxAfter(run,PRESENT-120,()=>lightWord(winPlan.ids,true));
+        fxAfter(run,PRESENT+520,()=>{ if(done)done(); });
+      });
+    });
   }
 
-  /* open the board back out when the reader dismisses the dialog, so they are
-     not left with five cubes where the grid should be */
+  /* When the reader dismisses the dialog the cube undoes its turns, squares
+     up and unfolds back into the board. */
   XW.onOverlayClose=()=>{
-    if(!wrapEl.classList.contains('cubing')) return;
+    if(!cubeEl||!wrapEl.classList.contains('cubing')||!winPlan) return;
     const run=fxStart();
-    const items=wrapEl.__fold||foldPlan(winCells());
-    wrapEl.classList.remove('cubebounce','cubing');
-    const opened=applyFold(items,false,true);
-    fxAfter(run,opened+120,()=>{ unfoldDone(items); dropCubes(); });
+    lightWord(winPlan.ids,false);
+    cubeEl.style.transition='transform '+TILT+'ms cubic-bezier(.3,.62,.2,1)';
+    cubeEl.style.transform=TILTED('F');
+    fxAfter(run,TILT,()=>turnAll(run,T.inverseOf(winPlan.seq),()=>unfoldToBoard(run)));
   };
 
   function setOffset(kind,idx,pxVal,instant){
@@ -657,7 +895,7 @@
 
   let busy=false;
   function move(m){
-    if(busy||won||lost) return;
+    if(busy||won||lost||wrapEl.classList.contains('cubing')) return;
     const [kind,idx,dir]=m;
     if(!opts.anim||window.matchMedia('(prefers-reduced-motion: reduce)').matches){
       applyOne(m); return;
@@ -760,7 +998,7 @@
     $('#winRank').style.display=rank?'block':'none';
     $('#winGuesses').textContent=String(guesses.length);
     $('#winTime').textContent=XW.fmtTime(XW.timer.secs);
-    if(good) closingCubes(()=>XW.openOverlay('winOverlay'));
+    if(good) closingCube(()=>XW.openOverlay('winOverlay'));
     else setTimeout(()=>XW.openOverlay('winOverlay'),700);
     XW.emit('game_complete',{puzzleId:puzId,seconds:XW.timer.secs,guesses:guesses.length,solved:good});
     XW.announce(good?('Solved. '+rank+', in '+guesses.length+
@@ -850,7 +1088,7 @@
   if(won||lost) XW.timer.stop();
   XW.emit('game_start',{puzzleId:puzId,engine:'gridlock'});
   /* only on a fresh board — reopening a puzzle mid-solve should not replay it */
-  if(!guesses.length && !won && !lost) requestAnimationFrame(openingCubes);
+  if(!guesses.length && !won && !lost) requestAnimationFrame(openingCube);
   if(substituted) setTimeout(()=>XW.toast('“'+substituted+'” is not available yet — showing today'),400);
   setInterval(save,10000);
 })();

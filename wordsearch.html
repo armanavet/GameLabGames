@@ -29,7 +29,7 @@
          touch-action:none;user-select:none;-webkit-user-select:none}
   .wc{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;
       font-family:'Inter',var(--font);font-weight:600;color:#333333;
-      font-size:clamp(9px,1.5vw,15px);cursor:pointer;-webkit-tap-highlight-color:transparent}
+      font-size:var(--wcf,15px);cursor:pointer;-webkit-tap-highlight-color:transparent}
   .wc.hinted{color:#9d00ff;font-weight:700}
   .wc.hinted::after{content:'';position:absolute;inset:12%;border-radius:50%;
         box-shadow:0 0 0 2px #ca78ff}
@@ -436,10 +436,22 @@
      scrolled into view: the scroll area was off-screen, not short. */
   const wideLayout=()=>!window.matchMedia||window.matchMedia('(min-width:721px)').matches;
   function sizeRail(){
+    sizeLetters();
     const rail=$('.rail');
     if(!wideLayout()){ rail.style.maxHeight=''; return; }
     const h=board.getBoundingClientRect().height;
     if(h) rail.style.maxHeight=Math.round(h)+'px';
+  }
+
+  /* A letter is sized by the square it sits in, not by the viewport. Off vw
+     it collapsed to its 9px floor on a phone — a 23px cell with a 9px letter
+     in it — because a phone's viewport is small however big the board is. */
+  function sizeLetters(){
+    const w=board.getBoundingClientRect().width;
+    if(!w) return;
+    const cell=(w-12)/Wd;                       /* 6px of padding each side */
+    const px=Math.max(12,Math.min(21,Math.round(cell*0.66)));
+    board.style.setProperty('--wcf',px+'px');
   }
 
   function render(){
