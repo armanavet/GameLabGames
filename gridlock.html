@@ -448,7 +448,7 @@
     $('#hintline').innerHTML = won  ? 'Solved in <b>'+guesses.length+'</b> '+(guesses.length===1?'guess':'guesses')+'.'
                              : lost ? 'Out of guesses. The word was <b>'+P.target+'</b>.'
                              : valid ? 'Window reads <b>'+cur+'</b> &mdash; submit it, or keep sliding.'
-                                     : '<b>'+cur+'</b> is not a word yet. Slide letters into the window.';
+                                     : '<b>'+cur+'</b> is not a word. Slide letters into the window.';
     paintHistory(); paintAlpha(); save();
   }
 
