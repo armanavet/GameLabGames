@@ -160,6 +160,11 @@
   if(API){
     try{ man=await (await fetch(API+'/api/index?game='+encodeURIComponent(GID),{cache:'no-store'})).json(); }
     catch(e){ console.warn('[archive] backend unavailable, using static files:',e&&e.message); }
+    /* An empty backend index, for a game that ships a static one, is read the
+       way the player reads it (core.js loadPuzzle): nothing uploaded yet, so
+       the static puzzles stand in. Without this the player opened a puzzle
+       that the archive said did not exist. */
+    if(man&&!(Array.isArray(man.index)&&man.index.length)&&G.manifest) man=null;
   }
   if(!man){
     /* this game's own static index or none — falling back to puzzles.json would
@@ -209,7 +214,11 @@
     const parts=[];
     if(it.author)parts.push('by '+it.author);
     if(it.editor)parts.push('Ed. '+it.editor);
-    return parts.length?parts.join(' / '):(it.size?it.size+' grid':'');
+    /* "15x15 grid" for a grid; anything else (Word Flower's "43 words") reads
+       as it is */
+    if(parts.length) return parts.join(' / ');
+    if(!it.size) return '';
+    return /^\d+x\d+/.test(it.size)?it.size+' grid':it.size;
   }
   /* Play state comes from the shared store, so the archive needs no backend and
      never fetches a payload — `cells` in the index supplies the denominator. */

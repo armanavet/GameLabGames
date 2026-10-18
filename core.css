@@ -242,6 +242,9 @@ html,body{margin:0;padding:0;height:100%;height:100dvh;font-family:var(--font);c
   .cluebar .ctxt{font-weight:700;white-space:normal;overflow:visible;line-height:1.3}
   .clueNav{display:flex}
   .mobonly{display:flex}
+  /* the other half of only:'desktop' -- without it the class showed on
+     phones as well, and a desktop control sat beside its mobile stand-in */
+  .deskonly{display:none}
   /* display:contents so dropdowns anchor to #app, and so hiding the Assist pill
      cannot hide the menu that lives inside its wrapper */
   .assistwrap,.menuwrap{display:contents}

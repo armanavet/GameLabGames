@@ -1,0 +1,117 @@
+{
+  "schema": 2,
+  "default": "wordflower-2026-10-19",
+  "_note": "Authored Word Flower puzzles, read when the backend has none. Drop a payload in puzzles/ and add a row here; cells is the number of words, which the archive divides progress by. The payload format is described at the top of wordflower-engine.js; tools/wordflower_gen.py proposes new flowers from a Hunspell dictionary.",
+  "index": [
+    {
+      "id": "wordflower-2026-10-10",
+      "title": "Word Flower",
+      "date": "2026-10-10",
+      "size": "41 words",
+      "cells": 41,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/wordflower-2026-10-10.json"
+    },
+    {
+      "id": "wordflower-2026-10-11",
+      "title": "Word Flower",
+      "date": "2026-10-11",
+      "size": "29 words",
+      "cells": 29,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/wordflower-2026-10-11.json"
+    },
+    {
+      "id": "wordflower-2026-10-12",
+      "title": "Word Flower",
+      "date": "2026-10-12",
+      "size": "34 words",
+      "cells": 34,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/wordflower-2026-10-12.json"
+    },
+    {
+      "id": "wordflower-2026-10-13",
+      "title": "Word Flower",
+      "date": "2026-10-13",
+      "size": "25 words",
+      "cells": 25,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/wordflower-2026-10-13.json"
+    },
+    {
+      "id": "wordflower-2026-10-14",
+      "title": "Word Flower",
+      "date": "2026-10-14",
+      "size": "28 words",
+      "cells": 28,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/wordflower-2026-10-14.json"
+    },
+    {
+      "id": "wordflower-2026-10-15",
+      "title": "Word Flower",
+      "date": "2026-10-15",
+      "size": "29 words",
+      "cells": 29,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/wordflower-2026-10-15.json"
+    },
+    {
+      "id": "wordflower-2026-10-16",
+      "title": "Word Flower",
+      "date": "2026-10-16",
+      "size": "38 words",
+      "cells": 38,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/wordflower-2026-10-16.json"
+    },
+    {
+      "id": "wordflower-2026-10-17",
+      "title": "Word Flower",
+      "date": "2026-10-17",
+      "size": "37 words",
+      "cells": 37,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/wordflower-2026-10-17.json"
+    },
+    {
+      "id": "wordflower-2026-10-18",
+      "title": "Word Flower",
+      "date": "2026-10-18",
+      "size": "34 words",
+      "cells": 34,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/wordflower-2026-10-18.json"
+    },
+    {
+      "id": "wordflower-2026-10-19",
+      "title": "Word Flower",
+      "date": "2026-10-19",
+      "size": "32 words",
+      "cells": 32,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/wordflower-2026-10-19.json"
+    }
+  ]
+}

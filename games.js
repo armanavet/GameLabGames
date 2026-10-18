@@ -154,14 +154,23 @@
     return '<svg viewBox="0 0 52 52" aria-hidden="true">' + out + '</g></svg>';
   };
 
-  const flower =
-    '<svg viewBox="0 0 52 52" aria-hidden="true">' +
-    '<g fill="#fff" stroke="currentColor" stroke-width="2">' +
-    '<circle cx="26" cy="11" r="8"/><circle cx="26" cy="41" r="8"/>' +
-    '<circle cx="11" cy="26" r="8"/><circle cx="41" cy="26" r="8"/>' +
-    '<circle cx="15.5" cy="15.5" r="8"/><circle cx="36.5" cy="36.5" r="8"/>' +
-    '<circle cx="36.5" cy="15.5" r="8"/><circle cx="15.5" cy="36.5" r="8"/>' +
-    '</g><circle cx="26" cy="26" r="9" fill="currentColor"/></svg>';
+  /* Word Flower's mark: six petals round a filled centre, as on the board --
+     one petal per letter, the centre being the letter every word must use.
+     Generated at two sizes from one description, as the cube is. */
+  const flowerMark = (S, ink, sw) => {
+    const c = S / 2, r = .29 * S, pr = .165 * S;
+    let d = '';
+    for (let k = 0; k < 6; k++) {
+      const a = k * Math.PI / 3;
+      d += '<circle cx="' + (c + r * Math.sin(a)).toFixed(2) + '" cy="' +
+           (c - r * Math.cos(a)).toFixed(2) + '" r="' + pr.toFixed(2) + '"/>';
+    }
+    return '<svg viewBox="0 0 ' + S + ' ' + S + '" aria-hidden="true">' +
+      '<g fill="none" stroke="' + ink + '" stroke-width="' + sw + '">' + d + '</g>' +
+      '<circle cx="' + c + '" cy="' + c + '" r="' + (.14 * S).toFixed(2) + '" fill="' + ink + '"/></svg>';
+  };
+  const flowerArt = flowerMark(52, 'currentColor', 2);
+  const flowerRow = flowerMark(35, ROW_INK, 1.4);
 
   const piece =
     '<svg viewBox="0 0 52 52" aria-hidden="true">' +
@@ -199,6 +208,9 @@
     gridlock:   '#a8763b',   // brass, for the window band
     /* the purple a found word is banded with, so card and board agree */
     wordsearch: '#9d00ff',
+    /* periwinkle: the flower's own blue would sit inside the sudoku family,
+       so the card takes the next blue along */
+    wordflower: '#5b6cf0',
   };
 
   window.GAMES = {
@@ -230,10 +242,18 @@
       tint: TINT.mini,
       art: grid(B([1, 0, 0, 0, 0, 0, 0, 0, 1])), archiveArt: xwordRow, live: true
     },
+    /* Word Flower is AUTHORED, like the crosswords: an editor uploads each
+       flower with its full list of accepted words, because only an editor
+       can say which words are fair. The static manifest is the fallback
+       when the backend cannot be reached. */
     wordflower: {
-      label: 'Wordflower', short: 'Wordflower',
+      label: 'Word Flower', short: 'Word Flower',
       blurb: 'Build as many words as you can from seven letters.',
-      art: flower
+      archiveBlurb: 'Seven letters, one in the middle. How many words can you make?',
+      player: 'wordflower.html', archive: 'archive.html', manifest: 'wordflower.json',
+      api: API,
+      tint: TINT.wordflower, tintInk: '#fff',
+      art: flowerArt, archiveArt: flowerRow, live: true
     },
     /* Sudoku is GENERATED, not authored: the date seeds the puzzle, so there
        is no manifest, no api and nothing to upload. `generated.days` is how

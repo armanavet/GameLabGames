@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<!-- zoom deliberately enabled: blocking it is a WCAG failure and iOS ignores it anyway -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Word Flower</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<style>
+  /* Word Flower -- laid out from the reference frame: the stage track across
+     the top, the flower on the left with its four buttons under it, and the
+     found words in a panel on the right. The flower's blues are the frame's. */
+  /* Colours are the design files' own: petals #BBE8FF ruled #54AFFF
+     ("Flower petals.svg"), centre #82CDFF ("Flower center.svg"), stage
+     flowers #707070 reached and #C5C5C5 not ("Achievement flower.svg"). */
+  :root{--petal:#bbe8ff;--petal-hit:#8fd8ff;--petal-rule:#54afff;--heart:#82cdff;
+        --stage-on:#707070;--stage-off:#c5c5c5;--icon:#494949;
+        --wf-blue:#1d7fd6;--hint:#ffd84d}
+  #app{max-width:1040px}
+  .main{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,300px);
+        grid-template-areas:"track track" "play rail";gap:20px 40px;
+        padding:20px 30px 18px;flex:1 1 auto;min-height:0;
+        /* rows hug their content: stretched, the spare height of a tall
+           window opened a gap between the stages and the flower */
+        align-content:start}
+
+  /* ---------- the stage track ----------
+     Six flowers joined by waves. A stage's flower turns blue when it is
+     reached, and the wave after it fills as the score climbs towards the
+     next -- the GDD's "the lines are filled as you play". */
+  .track{grid-area:track;justify-self:center;display:flex;align-items:flex-start}
+  .stage{display:flex;flex-direction:column;align-items:center;gap:5px;flex:none}
+  .stage .ico{width:22px;height:22px;color:var(--stage-off);transition:color .3s}
+  .stage.on .ico{color:var(--stage-on)}
+  .stage span{font-size:12px;line-height:1;color:#8a8a8a;white-space:nowrap}
+  .stage.on span{color:var(--ink)}
+  .stage.cur span{font-weight:700}
+  .leg{width:40px;height:14px;margin:3px 2px 0;flex:none;overflow:visible}
+  .leg path{fill:none;stroke-width:2;stroke-linecap:round}
+  .leg .base{stroke:#d9d9d9}
+  .leg .fill{stroke:var(--stage-on);transition:stroke-dasharray .45s ease}
+  /* an empty line draws nothing -- a round cap on a zero-length dash would
+     still leave a dot at its start */
+  .leg .fill.empty{visibility:hidden}
+
+  /* ---------- the play column ---------- */
+  .play{grid-area:play;display:flex;flex-direction:column;align-items:center;min-width:0}
+  .entrywrap{position:relative;width:min(330px,100%)}
+  /* The word being built. The centre letter is set apart in bold blue, as the
+     GDD asks, so it is obvious at a glance whether the word can count. */
+  .entry{height:50px;display:flex;align-items:center;justify-content:center;
+         border-bottom:1px solid #e3e3e3;font-family:'Inter',var(--font);
+         font-size:28px;font-weight:600;letter-spacing:.06em;color:var(--ink);
+         white-space:nowrap;overflow:hidden}
+  .entry b{color:var(--wf-blue);font-weight:800}
+  .caret{display:inline-block;width:2px;height:30px;background:var(--ink);margin-left:3px;
+         animation:wf-blink 1.05s steps(1) infinite}
+  @keyframes wf-blink{50%{opacity:0}}
+  .entry.shake{animation:wf-shake .36s}
+  /* a refused word lingers, greyed, while it shakes -- but it is no longer
+     the entry, so the next letter typed starts a fresh word at once */
+  .entry .gone{color:#b9b9b9}
+  @keyframes wf-shake{20%{transform:translateX(-7px)}40%{transform:translateX(6px)}
+                      60%{transform:translateX(-4px)}80%{transform:translateX(2px)}}
+  /* A refusal or a score, floated above the entry so nothing below moves.
+     Red for a word that does not count, blue for points, gold for a pangram. */
+  .msg{position:absolute;left:50%;bottom:calc(100% + 4px);transform:translate(-50%,4px);
+       padding:6px 14px;border-radius:999px;font-size:13.5px;font-weight:600;white-space:nowrap;
+       color:#fff;background:#d93a3a;opacity:0;pointer-events:none;
+       transition:opacity .18s,transform .18s}
+  .msg.show{opacity:1;transform:translate(-50%,0)}
+  .msg.good{background:var(--wf-blue)}
+  .msg.gold{background:#e2a400;color:#231a00}
+
+  /* the hint: a word's known letters and its length, and the eye that
+     uncovers one more */
+  .hintwrap{width:min(330px,100%);margin-top:10px;min-height:0}
+  .hintbar{display:flex;align-items:stretch;height:34px;border-radius:6px;overflow:hidden;
+           background:var(--hint)}
+  .hinttx{flex:1;display:flex;align-items:center;justify-content:center;
+          font-family:'Inter',var(--font);font-size:15px;font-weight:700;letter-spacing:.08em;color:#231a00}
+  .hinteye{width:40px;border:0;background:#1f1f1f;color:#fff;cursor:pointer;
+           display:flex;align-items:center;justify-content:center}
+  .hinteye:focus-visible{outline:2px solid var(--wf-blue);outline-offset:2px}
+  /* display:flex above outranks the hidden attribute, so say it outright */
+  .hinteye[hidden]{display:none}
+  .hintnote{margin:4px 0 0;text-align:center;font-size:11.5px;color:#7a7a7a}
+
+  /* ---------- the flower ----------
+     Built from the design files rather than redrawn: the six petal outlines
+     of "Flower petals.svg" and the centre of "Flower center.svg", at their
+     own coordinates. The petals' rule is an INNER stroke -- 8 wide, clipped
+     to the petal so only the inside 4 shows, which is what the file's mask
+     does -- so neighbouring petals meet in the dark blue seams of the frame. */
+  .flower{width:min(266px,100%);aspect-ratio:246/260;margin:12px 0 6px;display:block;overflow:visible;
+          touch-action:manipulation;user-select:none;-webkit-user-select:none;
+          -webkit-tap-highlight-color:transparent}
+  .flower .pf{fill:var(--petal);transition:fill .12s}
+  .flower .pr{fill:none;stroke:var(--petal-rule);stroke-width:8}
+  .flower .heart circle{fill:var(--heart);transition:fill .12s}
+  .flower .key{cursor:pointer;outline:none}
+  .flower .key text{font-family:'Inter',var(--font);font-size:25px;font-weight:700;fill:#161616;
+                    text-anchor:middle;dominant-baseline:central;pointer-events:none;
+                    transition:opacity .14s}
+  .flower .heart text{font-size:28px;font-weight:800}
+  .flower .petal.hit .pf,.flower .petal:active .pf{fill:var(--petal-hit)}
+  .flower .heart.hit circle,.flower .heart:active circle{fill:#5fbcff}
+  .flower .key:focus-visible .pr{stroke:#0b4f8a;stroke-width:12}
+  .flower .heart:focus-visible circle{stroke:#0b4f8a;stroke-width:3}
+  .flower.shuffling .petal text{opacity:0}
+
+  /* ---------- the four buttons ---------- */
+  .ctrls{display:flex;gap:22px;margin-top:4px}
+  .cbtn{width:52px;height:52px;border-radius:50%;border:1px solid #e1e1e1;background:#fff;
+        color:var(--icon);display:flex;align-items:center;justify-content:center;cursor:pointer;
+        transition:background .15s,border-color .15s}
+  .cbtn:hover{border-color:#c8c8c8}
+  .cbtn:active{transform:scale(.95)}
+  .cbtn.hint.on{background:#fff4c7;border-color:#f3dc85}
+  /* delete and enter wake up once there is something to act on */
+  .cbtn.live{background:#e3f2fe;border-color:#bfe0fb}
+  .caption{margin:14px auto 0;max-width:400px;text-align:center;font-size:13px;line-height:1.5;color:#5f5f5f}
+
+  /* ---------- found words ----------
+     The panel takes the play column's height and scrolls inside it; it is
+     taken out of flow so a long list can never make the row taller than the
+     flower beside it. */
+  .rail{grid-area:rail;position:relative;min-width:0;min-height:300px}
+  .wpanel{position:absolute;inset:0;display:flex;flex-direction:column;
+          background:#f3f3f3;border-radius:12px;padding:0 4px 4px}
+  .whead{display:flex;justify-content:space-between;align-items:center;padding:13px 14px 11px;
+         font-size:13.5px;font-weight:600;color:var(--ink)}
+  .wlist{flex:1 1 auto;min-height:0;overflow-y:auto;background:#fff;border-radius:8px;
+         display:grid;grid-template-columns:1fr 1fr;align-content:start;column-gap:12px;
+         padding:4px 10px 8px;margin:0;list-style:none}
+  /* height too: on a phone the list scrolls sideways, and a horizontal bar
+     takes its thickness from height, not width */
+  .wlist::-webkit-scrollbar{width:4px;height:4px}
+  .wlist::-webkit-scrollbar-thumb{background:#e2e2e2;border-radius:4px}
+  .wlist li{border-bottom:1px solid #eeeeee;min-width:0}
+  /* A found word opens its dictionary entry, which is what the GDD's "click
+     on the guessed word to see the meaning" does in the live game too. */
+  .wi{display:flex;align-items:center;gap:6px;padding:7px 4px;border-radius:4px;
+      font-family:'Inter',var(--font);font-size:14px;font-weight:500;color:var(--ink);
+      text-decoration:underline;text-underline-offset:2px;white-space:nowrap;overflow:hidden}
+  .wi .mk{width:14px;height:14px;flex:none;color:var(--wf-blue)}
+  .wi.pg{font-weight:800}
+  .wi.pg .mk{color:#e2a400}
+  .wi.new{background:#fff1a8}
+  /* words the reader did not find, shown by Reveal: listed, but plainly not
+     theirs */
+  .wi.rev{color:#9a9a9a;font-weight:500}
+  .wi.rev .mk{color:#c4c4c4}
+  .wempty{grid-column:1/-1;margin:14px 4px;font-size:13px;color:#8a8a8a}
+
+  .loaderr{margin:40px auto;max-width:420px;text-align:center;color:#5f5f5f}
+
+  /* ---------- mobile ----------
+     The GDD's phone layout: the found words move above the flower as one
+     scrolling row, about four to a screen, and Reveal becomes the eye in the
+     top bar. */
+  @media(max-width:720px){
+    .main{grid-template-columns:minmax(0,1fr);grid-template-areas:"track" "rail" "play";
+          gap:12px;padding:12px 12px 0;flex:0 0 auto}
+    .track{justify-self:stretch;justify-content:center}
+    .stage span{font-size:9.5px}
+    .stage .ico{width:16px;height:16px}
+    .leg{width:16px;margin:2px 1px 0}
+    .rail{min-height:0}
+    .wpanel{position:static}
+    .whead{padding:9px 10px 7px;font-size:12.5px}
+    .wlist{display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:8px;
+           padding:6px 8px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
+           overscroll-behavior-x:contain}
+    .wlist li{flex:0 0 auto;min-width:calc(25% - 6px);border-bottom:0;scroll-snap-align:start}
+    .wi{justify-content:center;font-size:13px;padding:6px 6px}
+    .wempty{margin:4px;font-size:12px}
+    .flower{width:min(270px,76vw);margin:8px 0 4px}
+    .entry{height:44px;font-size:25px}
+    .ctrls{gap:16px}
+    .cbtn{width:48px;height:48px}
+    .caption{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="main" id="main">
+    <div class="track" id="track" role="img" aria-label="Score"></div>
+
+    <div class="play" id="play">
+      <div class="entrywrap">
+        <div class="msg" id="msg" role="status" aria-live="polite"></div>
+        <div class="entry" id="entry" aria-label="Your word"></div>
+      </div>
+      <div class="hintwrap" id="hintwrap" hidden>
+        <div class="hintbar">
+          <div class="hinttx" id="hinttx"></div>
+          <button class="hinteye" type="button" id="hintEye" aria-label="Show another letter">
+            <svg width="20" height="20" aria-hidden="true"><use href="icons.svg#i-eye"/></svg></button>
+        </div>
+        <p class="hintnote" id="hintnote">Tap the eye to show another letter</p>
+      </div>
+
+      <svg class="flower" id="flower" viewBox="0 0 246 260" role="group" aria-label="Letters"></svg>
+
+      <div class="ctrls">
+        <!-- icons: the design's a.svg (hint), b.svg (shuffle) and Vector-1.svg
+             (delete), at their own size and stroke -->
+        <button class="cbtn hint" type="button" id="hintBtn" aria-label="Hint" title="Hint">
+          <svg width="13" height="20" viewBox="0 0 13 20" fill="none" aria-hidden="true">
+            <path d="M9.05 11.8C9.23 10.88 9.69 10.24 10.43 9.51C11.34 8.68 11.8 7.49 11.8 6.3C11.8 4.84 11.22 3.44 10.19 2.41C9.16 1.38 7.76 .8 6.3 .8C4.84 .8 3.44 1.38 2.41 2.41C1.38 3.44 .8 4.84 .8 6.3C.8 7.22 .98 8.32 2.18 9.51C2.82 10.15 3.37 10.88 3.55 11.8M3.55 15.47H9.05M4.47 19.13H8.13"
+                  stroke="#C39A18" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+        <button class="cbtn" type="button" id="shuffleBtn" aria-label="Shuffle the petals" title="Shuffle">
+          <svg width="21" height="20" viewBox="0 0 21 20" fill="none" aria-hidden="true">
+            <path d="M15.47 19.13L19.13 15.47L15.47 11.8M19.13 15.47H13.6C13 15.46 12.41 15.31 11.88 15.02C11.35 14.73 10.9 14.32 10.57 13.82L10.24 13.41M15.47 8.13L19.13 4.47L15.47 .8M19.13 4.47L13.66 4.47C13.07 4.46 12.48 4.6 11.95 4.87C11.43 5.15 10.97 5.54 10.63 6.03L5.63 13.91C5.29 14.39 4.84 14.79 4.31 15.06C3.79 15.33 3.2 15.47 2.61 15.47H.8M.8 4.47H2.61C3.29 4.46 3.96 4.65 4.55 5C5.13 5.36 5.6 5.87 5.91 6.48"
+                  stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+        <button class="cbtn" type="button" id="delBtn" aria-label="Delete the last letter" title="Delete">
+          <svg width="20" height="15" viewBox="0 0 20 15" fill="none" aria-hidden="true">
+            <path d="M14.47 4.47L11.72 7.22M11.72 7.22L8.97 9.97M11.72 7.22L8.97 4.47M11.72 7.22L14.47 9.97M8.13 .8C7.68 .8 7.24 .97 6.9 1.28L1.1 6.54C1.01 6.62 .93 6.73 .88 6.85C.83 6.96 .8 7.09 .8 7.22C.8 7.34 .83 7.47 .88 7.59C.93 7.7 1.01 7.81 1.1 7.9L6.9 13.16C7.24 13.47 7.68 13.63 8.13 13.63H17.3C17.79 13.63 18.25 13.44 18.6 13.1C18.94 12.75 19.13 12.29 19.13 11.8V2.63C19.13 2.15 18.94 1.68 18.6 1.34C18.25 .99 17.79 .8 17.3 .8H8.13Z"
+                  stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+        <!-- Enter is not among the design's four (its fourth, Vector-2.svg, is
+             a turn-back arrow), but a phone has no Enter key and the live game
+             has this button; drawn to match the set -->
+        <button class="cbtn" type="button" id="enterBtn" aria-label="Enter the word" title="Enter">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="9.2" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M5.6 10H14M10.8 6.6L14.2 10L10.8 13.4" stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div class="caption" id="caption"></div>
+    </div>
+
+    <div class="rail">
+      <div class="wpanel">
+        <div class="whead"><span>Words found</span><span id="wcount">0/0</span></div>
+        <ul class="wlist" id="wlist" aria-label="Words found"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="overlay" id="settingsOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-set">
+    <div class="mhead"><h2 id="dlgH-set">Settings</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <div class="sgroup">
+        <div class="srow"><div class="lab"><b>Show timer</b><span>Shows the timer while playing this puzzle</span></div>
+          <label class="sw"><input type="checkbox" id="optTimerShown" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Sound</b><span>Control puzzle audio (if available)</span></div>
+          <label class="sw"><input type="checkbox" id="optSound" checked/><i></i></label></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="applySettings">Apply</button></div>
+  </div></div>
+
+  <!-- How to play -->
+  <div class="overlay" id="howtoOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-howto">
+    <div class="mhead"><h2 id="dlgH-howto">How to play</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>Make as many words as you can from the seven letters of the flower. Every word must use the letter in the center and be at least four letters long. Letters can be used more than once in the same word.</p>
+      <p>Tap the petals or type on your keyboard to spell a word, then press Enter. Words you find are listed beside the flower; tap one to look up its meaning.</p>
+      <p><b>Score</b></p>
+      <p>A four-letter word is worth 1 point, and every letter after that adds a point: five letters score 2, six score 3, and so on. A pangram, a word that uses all seven letters, earns 5 bonus points. Your score moves you along the stages at the top, from Newbie to Golden Poppy.</p>
+      <p><b>Hint</b></p>
+      <p>The bulb shows the first letter of a word you have not found yet, and how long it is. Tap the eye to uncover more of its letters; the last one is always yours to find. Tap the bulb again for a different word. Hints never cost you points.</p>
+      <p><b>Shuffle</b></p>
+      <p>Moves the petals around to help you see new words. The center letter stays put.</p>
+      <p><b>Reveal</b></p>
+      <p>Shows every word you have not found and ends the puzzle. Your score stays what it was before you revealed.</p>
+      <p><b>Save</b></p>
+      <p>Your progress is saved automatically in this browser. You can also choose Save from the menu at any time.</p>
+      <p><b>Start again</b></p>
+      <p>Clears your words and sets the clock back to zero.</p>
+    </div>
+  </div></div>
+
+  <!-- Support -->
+  <div class="overlay" id="supportOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-support">
+    <div class="mhead"><h2 id="dlgH-support">Support</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>This player is powered by GameLab</p>
+      <div class="soft">
+        <p>Please include the following in your message:</p>
+        <p><b>Ticket number: <span id="ticketNo">&mdash;</span></b></p>
+        <p>Device type</p><p>Device orientation</p><p>Screenshot (if possible)</p>
+      </div>
+      <hr/>
+      <p id="copyrightLine">&copy; 2026 Tribune Content Agency, LLC</p>
+    </div>
+  </div></div>
+
+  <!-- Congratulations -->
+  <div class="overlay" id="winOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-win">
+    <div class="mhead"><h2 id="dlgH-win">Congratulations!</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center">
+      <div class="winicon"><svg width="34" height="34" aria-hidden="true"><use href="icons.svg#i-confetti"/></svg></div>
+      <p id="winLine">You found every word.</p>
+      <p class="winrank" id="winRank"></p>
+      <div class="winstats">
+        <div><span class="wl">Score</span><b id="winScore">0</b></div>
+        <div><span class="wl">Words</span><b id="winWords">0</b></div>
+        <div><span class="wl">Time</span><b id="winTime">&mdash;</b></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="winShare">Share</button></div>
+    <p class="winnext">Discover Your New Challenge</p>
+    <div class="promo" id="promo"></div>
+  </div></div>
+
+  <!-- shared confirm/notice -->
+  <div class="overlay" id="dialogOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="mhead"><h2 id="dlgTitle">&mdash;</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center"><p id="dlgBody">&mdash;</p></div>
+    <div class="mbtns">
+      <button class="btn sec" type="button" id="dlgClose">Close</button>
+      <button class="btn pri" type="button" id="dlgOk">Ok</button>
+    </div>
+  </div></div>
+
+  <div id="menuScrim"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="srLive" class="sr-only" role="status" aria-live="polite"></div>
+</div>
+
+<style>
+  /* Congratulations stats, as the other games draw them */
+  .winstats{display:flex;justify-content:center;gap:0;margin:16px 0 4px}
+  .winstats > div{display:flex;flex-direction:column;gap:2px;padding:0 22px}
+  .winstats > div + div{border-left:1px solid var(--panel-line)}
+  .winstats .wl{font-size:14px;font-weight:400;color:var(--ink)}
+  .winstats b{font-size:26px;font-weight:700;color:var(--ink)}
+  .winicon{display:flex;justify-content:center;margin:2px 0 -2px}
+  .winrank{margin:4px 0 0;font-size:22px;font-weight:900;color:var(--wf-blue)}
+  .winrank.gold{color:#d79a00}
+  .winnext{margin:12px 0 10px;text-align:center;font-size:14px;font-weight:700;color:var(--ink)}
+  .promo{width:min(196px,100%);margin:0 auto 4px;border-radius:12px;overflow:hidden;
+         background:#fff;border:1px solid #e8e8e8}
+  .promo .pthumb{height:86px;display:flex;align-items:center;justify-content:center}
+  .promo .pthumb svg{width:44px;height:44px}
+  .promo .pbody{padding:10px 12px 12px;text-align:left}
+  .promo h3{margin:0 0 3px;font-size:15px;font-weight:700;color:var(--ink)}
+  .promo p{margin:0 0 9px;font-size:12px;font-weight:400;color:#6b6b6b;line-height:1.35}
+  .promo .pgo{display:flex;align-items:center;justify-content:center;height:32px;width:100%;
+        border-radius:20px;border:1.5px solid var(--ink);background:#fff;cursor:pointer;
+        font-family:var(--font);font-size:13px;font-weight:700;color:var(--ink)}
+</style>
+
+<!-- games.js first: core.js reads window.GAMES to resolve the roster entry -->
+<script src="games.js"></script>
+<script src="core.js"></script>
+<script src="wordflower-engine.js"></script>
+<script>
+(async function(){
+  'use strict';
+  const $=XW.$, W=window.WORDFLOWER;
+  XW.gameId='wordflower';
+  const G=(window.GAMES&&window.GAMES.wordflower)||{};
+  const SVGNS='http://www.w3.org/2000/svg';
+
+  /* ---------- chrome ----------
+     Reveal is a pill on the desktop bar and the eye on a phone, as the GDD's
+     mobile notes have it. Ask a friend is in the GDD too, but needs the
+     accounts half of the platform, so it is deliberately absent. */
+  XW.mountToolbar($('#app'),{
+    left:['timer'],
+    right:[{id:'revealBtn',kind:'pill',text:'Reveal',label:'Reveal every word',only:'desktop'},
+           {id:'revealMob',icon:'i-eye',size:22,label:'Reveal every word',only:'mobile'},
+           'settings','menu'],
+    menuItems:[['more','More puzzles'],['howto','How to play'],['save','Save'],
+               ['restart','Start again'],['support','Support']]
+  });
+  $('#app').insertBefore($('.topbar'),$('.main'));
+
+  /* ---------- which puzzle ----------
+     Authored, like the crosswords: the backend's published index first, the
+     static manifest when the backend cannot be reached. A payload that breaks
+     the editorial contract is refused here as well as at upload, so a
+     hand-edited static file cannot put a broken flower in front of a reader. */
+  let res=null, P=null, loadErr='';
+  try{
+    res=await XW.loadPuzzle();
+    const problems=W.validate(res.data);
+    if(problems.length){ loadErr='This puzzle has a problem and cannot be played.';
+                         console.warn('[wordflower] invalid payload:',problems); }
+    else P=W.normalize(res.data);
+  }catch(e){ loadErr='No puzzle is available right now. Please try again later.';
+             console.warn('[wordflower]',e&&e.message); }
+  if(!P){
+    $('#main').innerHTML='<p class="loaderr"></p>';
+    $('.loaderr').textContent=loadErr;
+    return;
+  }
+  const puzId=res.id;
+  XW.puzzleId=puzId;
+  const iso=P.date||(res.meta&&res.meta.date)||'';
+  document.title='Word Flower'+(iso?' — '+iso:'');
+
+  const DOW=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  (function(){
+    const d=new Date(iso+'T00:00:00');
+    const when=isNaN(d)?'':(DOW[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear());
+    const by=[P.author?'by '+P.author:'',P.editor?'Ed. '+P.editor:''].filter(Boolean).join(' / ');
+    $('#caption').textContent=['L. A. Times '+(G.label||'Word Flower'),when,by].filter(Boolean).join(' · ');
+  })();
+
+  /* ---------- state ---------- */
+  const TH=W.thresholds(P);
+  const found=new Set();
+  let order=P.petals.slice();      // the petals as currently arranged
+  let entry='';
+  let hint=null;                   // {word, shown:[indexes]}
+  let lastFound=null;              // the most recent find, highlighted in the list
+  let revealed=false, won=false;
+  const score=()=>[...found].reduce((n,w)=>n+W.pointsFor(w,P),0);
+
+  /* ---------- the flower ----------
+     The design's own geometry: "Flower petals.svg" (246x260, centred on
+     123,130) and "Flower center.svg" (a 40-radius disc with a soft white
+     inner highlight). Drawn once; a shuffle only changes which letter each
+     petal carries. Petals run clockwise from the top. */
+  const flower=$('#flower');
+  const CX=123, CY=130;
+  const PETALS=[
+    'M123 115.669C106.612 94.1732 62.5687 57.3228 73.8356 24.5669C84.0782 -8.18898 161.922 -8.18898 172.164 24.5669C183.431 57.3228 139.388 94.1732 123 115.669Z',
+    'M135.414 122.835C145.851 97.8992 155.766 41.3543 189.782 34.7315C223.285 27.2181 262.207 94.5929 238.946 119.835C216.197 145.969 162.239 126.274 135.414 122.835Z',
+    'M135.414 137.165C162.239 133.726 216.197 114.031 238.946 140.165C262.207 165.407 223.285 232.782 189.782 225.269C155.766 218.646 145.851 162.101 135.414 137.165Z',
+    'M123 144.331C139.388 165.827 183.431 202.677 172.164 235.433C161.922 268.189 84.0782 268.189 73.8356 235.433C62.5687 202.677 106.612 165.827 123 144.331Z',
+    'M110.586 137.165C100.149 162.101 90.234 218.646 56.2183 225.269C22.7148 232.782 -16.207 165.407 7.0539 140.165C29.8027 114.031 83.7606 133.726 110.586 137.165Z',
+    'M110.586 122.835C83.7606 126.274 29.8027 145.969 7.0539 119.835C-16.207 94.5929 22.7148 27.2181 56.2183 34.7315C90.234 41.3543 100.149 97.8992 110.586 122.835Z'
+  ];
+  /* where a petal's letter sits: out along its axis, at the petal's widest */
+  const LETTER_R=80;
+  const mk=(tag,attrs,parent)=>{
+    const n=document.createElementNS(SVGNS,tag);
+    for(const k in attrs) n.setAttribute(k,attrs[k]);
+    if(parent) parent.appendChild(n);
+    return n;
+  };
+  const defs=mk('defs',{},flower);
+  /* the centre's inner highlight, as "Flower center.svg" defines it */
+  const shade=mk('filter',{id:'wfHeart',x:'-10%',y:'-10%',width:'120%',height:'125%',
+                           'color-interpolation-filters':'sRGB'},defs);
+  mk('feColorMatrix',{in:'SourceAlpha',type:'matrix',result:'a',
+                      values:'0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0'},shade);
+  mk('feOffset',{dy:'2'},shade);
+  mk('feGaussianBlur',{stdDeviation:'2'},shade);
+  mk('feComposite',{in2:'a',operator:'arithmetic',k2:'-1',k3:'1'},shade);
+  mk('feColorMatrix',{type:'matrix',values:'0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25098 0'},shade);
+  mk('feBlend',{mode:'normal',in2:'SourceGraphic'},shade);
+
+  const petalEls=[];
+  PETALS.forEach((d,k)=>{
+    const clip=mk('clipPath',{id:'wfPetal'+k},defs);
+    mk('path',{d:d},clip);
+    const g=mk('g',{class:'key petal',role:'button',tabindex:'0','data-k':k},flower);
+    mk('path',{class:'pf',d:d},g);
+    mk('path',{class:'pr',d:d,'clip-path':'url(#wfPetal'+k+')'},g);
+    const a=k*Math.PI/3;
+    const t=mk('text',{x:(CX+LETTER_R*Math.sin(a)).toFixed(1),y:(CY-LETTER_R*Math.cos(a)).toFixed(1)},g);
+    petalEls.push({g:g,t:t});
+  });
+  const heart=mk('g',{class:'key heart',role:'button',tabindex:'0'},flower);
+  mk('circle',{cx:CX,cy:CY,r:40,filter:'url(#wfHeart)'},heart);
+  const heartTx=mk('text',{x:CX,y:CY},heart);
+
+  function paintFlower(){
+    petalEls.forEach((p,k)=>{
+      p.t.textContent=order[k];
+      p.g.setAttribute('aria-label','Letter '+order[k]);
+    });
+    heartTx.textContent=P.center;
+    heart.setAttribute('aria-label','Center letter '+P.center);
+  }
+  const flash=(g)=>{ g.classList.add('hit'); setTimeout(()=>g.classList.remove('hit'),140); };
+  petalEls.forEach((p,k)=>{
+    p.g.addEventListener('click',()=>{ flash(p.g); addLetter(order[k]); });
+  });
+  heart.addEventListener('click',()=>{ flash(heart); addLetter(P.center); });
+  [heart].concat(petalEls.map(p=>p.g)).forEach(g=>g.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); g.dispatchEvent(new Event('click')); }
+  }));
+  /* A mouse or finger press must not leave focus on a petal or a button:
+     the reader taps letters, then types Enter on the keyboard, and a focused
+     petal would take that Enter as "add me again" (a focused Shuffle would
+     shuffle) instead of submitting the word. Tab still reaches every one of
+     them for keyboard play. */
+  flower.addEventListener('pointerdown',e=>{ if(e.target.closest('.key')) e.preventDefault(); });
+  $('.ctrls').addEventListener('pointerdown',e=>{ if(e.target.closest('.cbtn')) e.preventDefault(); });
+
+  /* The petals move, the centre never does -- shuffle is there to make the
+     reader see the same letters differently, and the centre is the one
+     letter they must not lose track of. Always a new arrangement. */
+  function shuffle(){
+    if(flower.classList.contains('shuffling'))return;
+    const before=order.join('');
+    let next=order.slice();
+    for(let tries=0;tries<8&&next.join('')===before;tries++){
+      for(let i=next.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [next[i],next[j]]=[next[j],next[i]]; }
+    }
+    flower.classList.add('shuffling');
+    setTimeout(()=>{ order=next; paintFlower(); flower.classList.remove('shuffling'); },150);
+    XW.emit('assist_used',{action:'shuffle'});
+  }
+
+  /* ---------- the word being built ---------- */
+  const MAX_LEN=19;
+  const LETTERS=new Set(P.petals.concat(P.center));
+  let rejected='';                 // a refused word, still on show while it shakes
+  function addLetter(ch){
+    if(won||revealed||entry.length>=MAX_LEN)return;
+    rejected='';
+    entry+=ch; paintEntry();
+  }
+  function delLetter(){ if(entry){ entry=entry.slice(0,-1); paintEntry(); } }
+  function paintEntry(){
+    const box=$('#entry');
+    box.textContent='';
+    if(!entry&&rejected){
+      const g=document.createElement('span'); g.className='gone'; g.textContent=rejected;
+      box.appendChild(g);
+    }
+    entry.split('').forEach(ch=>{
+      if(ch===P.center){ const b=document.createElement('b'); b.textContent=ch; box.appendChild(b); }
+      else box.appendChild(document.createTextNode(ch));
+    });
+    const caret=document.createElement('span'); caret.className='caret'; box.appendChild(caret);
+    box.setAttribute('aria-label','Your word: '+(entry||'empty'));
+    $('#delBtn').classList.toggle('live',!!entry);
+    $('#enterBtn').classList.toggle('live',entry.length>=W.MIN_LEN);
+  }
+
+  let msgTimer=null;
+  function say(text,kind){
+    const m=$('#msg');
+    m.textContent=text;
+    m.className='msg show'+(kind?' '+kind:'');
+    clearTimeout(msgTimer);
+    msgTimer=setTimeout(()=>{ m.classList.remove('show'); },kind?1300:1600);
+  }
+
+  function submit(){
+    if(won||revealed||!entry)return;
+    const r=W.check(P,entry,found);
+    if(!r.ok){
+      say(W.MESSAGES[r.reason]);
+      XW.announce(W.MESSAGES[r.reason]);
+      /* The entry clears NOW, not when the shake ends: a reader typing on
+         lost the first letters of their next word to a delayed clear. */
+      rejected=entry; entry=''; paintEntry();
+      const box=$('#entry'), mine=rejected;
+      box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+      setTimeout(()=>{ box.classList.remove('shake');
+                       if(rejected===mine){ rejected=''; paintEntry(); } },420);
+      return;
+    }
+    const was=W.rankIndex(score(),TH);
+    found.add(r.word); lastFound=r.word;
+    if(hint&&hint.word===r.word) hint=null;
+    entry=''; paintEntry();
+    const now=W.rankIndex(score(),TH);
+    const stageUp=now>was?W.RANKS[now].name+'! ':'';
+    say(stageUp+(r.pangram?'Pangram! ':'')+'+'+r.points, r.pangram?'gold':'good');
+    XW.announce(r.word+' found, '+r.points+(r.points===1?' point':' points')+
+                (stageUp?'. You reached '+W.RANKS[now].name:''));
+    XW.emit('assist_used',{action:'word_found',word:r.word,points:r.points,pangram:r.pangram});
+    render();
+    checkWin();
+  }
+
+  /* ---------- the stage track ---------- */
+  /* "Achievement flower.svg", in its own order: the white centre goes down
+     first and the six petals over it, so only the small hole between them
+     shows white. */
+  const STAGE_ICON='<svg class="ico" viewBox="0 0 23 23" aria-hidden="true">'+
+    '<circle cx="11.5" cy="11.5" r="3" fill="#fff"/><g fill="currentColor">'+
+    '<circle cx="6.304" cy="8.5" r="4"/><circle cx="6.304" cy="14.5" r="4"/>'+
+    '<circle cx="11.5" cy="17.5" r="4"/><circle cx="16.696" cy="14.5" r="4"/>'+
+    '<circle cx="16.696" cy="8.5" r="4"/><circle cx="11.5" cy="5.5" r="4"/></g></svg>';
+  const track=$('#track');
+  const stageEls=[], legEls=[];
+  W.RANKS.forEach((rk,i)=>{
+    if(i){
+      /* each wave bends the other way from the one before, as in the frame */
+      const leg=document.createElementNS(SVGNS,'svg');
+      leg.setAttribute('class','leg'); leg.setAttribute('viewBox','0 0 40 14');
+      leg.setAttribute('aria-hidden','true');
+      const d=(i%2)?'M2 10 Q20 -2 38 10':'M2 4 Q20 16 38 4';
+      mk('path',{class:'base',d:d},leg);
+      const f=mk('path',{class:'fill',d:d,pathLength:'1','stroke-dasharray':'0 1'},leg);
+      track.appendChild(leg); legEls.push(f);
+    }
+    const s=document.createElement('div');
+    s.className='stage'+(i===W.RANKS.length-1?' gold':'');
+    s.innerHTML=STAGE_ICON+'<span></span>';
+    s.querySelector('span').textContent=rk.name;
+    track.appendChild(s); stageEls.push(s);
+  });
+  function paintTrack(){
+    const sc=score(), k=W.rankIndex(sc,TH);
+    stageEls.forEach((s,i)=>{ s.classList.toggle('on',i<=k); s.classList.toggle('cur',i===k); });
+    legEls.forEach((f,i)=>{
+      const p=W.legProgress(sc,TH,i);
+      f.setAttribute('stroke-dasharray',p.toFixed(3)+' 1');
+      f.classList.toggle('empty',p<=0);
+    });
+    const next=k+1<TH.length?TH[k+1]-sc:0;
+    track.setAttribute('aria-label','Score '+sc+(k>=0?', '+W.RANKS[k].name:'')+
+                       (next>0?'. '+next+' more to '+W.RANKS[k+1].name:''));
+    track.title=sc+(sc===1?' point':' points');
+  }
+
+  /* ---------- found words ---------- */
+  const DICT='https://www.merriam-webster.com/dictionary/';
+  const TICK='<svg class="mk" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/>'+
+             '<path d="M4.6 8.3l2.2 2.2 4.6-4.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const STAR='<svg class="mk" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1.2l2 4.3 4.7.5-3.5 3.2 1 4.6L8 11.5 3.8 13.8l1-4.6L1.3 6l4.7-.5z"/></svg>';
+  const DOT='<svg class="mk" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg>';
+  function paintList(){
+    const list=$('#wlist');
+    list.innerHTML='';
+    const shown=revealed?P.words:P.words.filter(w=>found.has(w));
+    if(!shown.length){
+      const li=document.createElement('li'); li.className='wempty';
+      li.textContent='Words you find will appear here.';
+      list.appendChild(li);
+    }
+    shown.forEach(w=>{
+      const li=document.createElement('li');
+      const a=document.createElement('a');
+      const pg=W.isPangram(w,P), mine=found.has(w);
+      a.className='wi'+(pg?' pg':'')+(mine?'':' rev')+(w===lastFound&&mine?' new':'');
+      a.href=DICT+encodeURIComponent(w.toLowerCase());
+      a.target='_blank'; a.rel='noopener';
+      a.title='Look up '+w;
+      a.setAttribute('aria-label',w+(pg?', pangram':'')+(mine?'':', not found')+'. Look up its meaning');
+      a.innerHTML=(mine?(pg?STAR:TICK):DOT)+'<span></span>';
+      a.querySelector('span').textContent=w;
+      li.appendChild(a); list.appendChild(li);
+    });
+    $('#wcount').textContent=found.size+'/'+P.words.length;
+    /* keep the newest find in view -- on a phone the row scrolls sideways */
+    const nw=list.querySelector('.wi.new');
+    if(nw&&nw.scrollIntoView) nw.scrollIntoView({block:'nearest',inline:'nearest'});
+  }
+
+  /* ---------- hints ---------- */
+  function doHint(){
+    if(won||revealed)return;
+    const next=W.pickHint(P,found,hint&&hint.word);
+    if(!next){ say('Every word is found'); return; }
+    hint=next;
+    XW.emit('assist_used',{action:'hint'});
+    paintHint(); save();
+    XW.announce('Hint: a '+hint.word.length+'-letter word starting with '+hint.word[0]);
+  }
+  function moreHint(){
+    if(!W.canRevealMore(hint))return;
+    hint=W.revealMore(hint);
+    XW.emit('assist_used',{action:'hint_letter'});
+    paintHint(); save();
+  }
+  function paintHint(){
+    const wrap=$('#hintwrap');
+    if(!hint||won||revealed){ wrap.hidden=true; $('#hintBtn').classList.remove('on'); return; }
+    wrap.hidden=false;
+    $('#hinttx').textContent=W.hintText(hint)+'  ('+hint.word.length+')';
+    const more=W.canRevealMore(hint);
+    $('#hintEye').hidden=!more;
+    $('#hintnote').hidden=!more;
+    $('#hintBtn').classList.add('on');
+  }
+
+  /* ---------- reveal & the end ---------- */
+  function doReveal(){
+    if(won||revealed)return;
+    XW.dialog('Reveal all words',
+      'Show every word you have not found? This ends the puzzle; your score stays as it is.',
+      ()=>{
+        revealed=true; hint=null; entry='';
+        XW.emit('assist_used',{action:'reveal_grid'});
+        render(); finish();
+      },{ok:'Reveal',cancel:'Close'});
+  }
+  function finish(){
+    if(won)return;
+    won=true; XW.timer.stop();
+    const sc=score(), k=W.rankIndex(sc,TH);
+    const all=found.size===P.words.length;
+    $('#dlgH-win').textContent=all?'Congratulations!':'Puzzle revealed';
+    $('#winLine').textContent=all?'You found every word.'
+      :'You found '+found.size+' of '+P.words.length+' words.';
+    const rk=$('#winRank');
+    rk.textContent=k>=0?W.RANKS[k].name:'';
+    rk.classList.toggle('gold',k===W.RANKS.length-1);
+    $('#winScore').textContent=String(sc);
+    $('#winWords').textContent=found.size+'/'+P.words.length;
+    $('#winTime').textContent=XW.fmtTime(XW.timer.secs);
+    XW.openOverlay('winOverlay');
+    XW.emit('game_complete',{puzzleId:puzId,seconds:XW.timer.secs,score:sc,
+                             words:found.size,total:P.words.length,revealed:revealed});
+    XW.announce(all?('Every word found. '+sc+' points.'):('Words revealed. You scored '+sc+'.'));
+    render();
+  }
+  function checkWin(){
+    if(!won&&!revealed&&found.size===P.words.length) setTimeout(finish,700);
+  }
+
+  /* "Discover Your New Challenge": another live game, chosen by the date so
+     it is the same for everyone that day. */
+  (function(){
+    const ids=Object.keys(window.GAMES||{}).filter(k=>{
+      const g=window.GAMES[k]; return g&&g.live&&!g.hidden&&k!==XW.gameId; });
+    if(!ids.length)return;
+    let h=0; const seed=iso||puzId;
+    for(let i=0;i<seed.length;i++) h=(Math.imul(h,31)+seed.charCodeAt(i))>>>0;
+    const pid=ids[h%ids.length], pg=window.GAMES[pid];
+    const box=$('#promo');
+    const thumb=document.createElement('div');
+    thumb.className='pthumb';
+    thumb.style.background=pg.tint||'var(--band)';
+    if(pg.tintInk) thumb.style.color=pg.tintInk;
+    thumb.innerHTML=pg.art||'';
+    const body=document.createElement('div'); body.className='pbody';
+    const h3=document.createElement('h3'); h3.textContent=pg.label;
+    const bl=document.createElement('p'); bl.textContent=pg.blurb||'';
+    const go=document.createElement('button');
+    go.type='button'; go.className='pgo'; go.textContent='Play';
+    go.onclick=()=>XW.navigate({gameId:pid});
+    body.appendChild(h3); body.appendChild(bl); body.appendChild(go);
+    box.appendChild(thumb); box.appendChild(body);
+  })();
+  $('#winShare').onclick=()=>{
+    XW.share('copy',XW.shareUrl(),XW.shareText('Word Flower'));
+    XW.emit('share_clicked',{target:'copy'});
+  };
+
+  /* ---------- render ---------- */
+  function render(){
+    paintEntry(); paintTrack(); paintList(); paintHint();
+    const done=won||revealed;
+    ['#hintBtn','#shuffleBtn','#delBtn','#enterBtn'].forEach(s=>{ $(s).disabled=done; });
+    save();
+  }
+
+  /* ---------- persistence ----------
+     filled/total are what the archive reads to draw its progress ring. */
+  function save(){
+    XW.storage.save(puzId,{
+      found:[...found], revealed:revealed, completed:won, elapsed:XW.timer.secs,
+      hint:hint, order:order.join(''), last:lastFound,
+      filled:found.size, total:P.words.length, score:score()
+    });
+  }
+  function load(){
+    const st=XW.storage.load(puzId); if(!st)return;
+    (st.found||[]).forEach(w=>{ if(P.words.indexOf(w)>=0) found.add(w); });
+    revealed=!!st.revealed; won=!!st.completed;
+    if(st.hint&&P.words.indexOf(st.hint.word)>=0&&!found.has(st.hint.word)) hint=st.hint;
+    /* a saved arrangement is kept only if it is still these six petals */
+    if(typeof st.order==='string'&&st.order.split('').sort().join('')===P.petals.slice().sort().join(''))
+      order=st.order.split('');
+    if(st.last&&found.has(st.last)) lastFound=st.last;
+    XW.timer.secs=st.elapsed||0;
+  }
+  load();
+
+  /* ---------- wiring ---------- */
+  $('#hintBtn').onclick=doHint;
+  $('#hintEye').onclick=moreHint;
+  $('#shuffleBtn').onclick=shuffle;
+  $('#delBtn').onclick=delLetter;
+  $('#enterBtn').onclick=submit;
+  $('#revealBtn').onclick=doReveal;
+  $('#revealMob').onclick=doReveal;
+
+  /* The keyboard plays too: the flower's letters, Backspace, Enter, and the
+     space bar to shuffle. Keys are left alone while a dialog or menu is open,
+     or when a modifier is held, so browser shortcuts still work. */
+  document.addEventListener('keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    if(XW.anyOverlayOpen()||document.querySelector('.mmenu.open,.menu.open'))return;
+    const tag=(e.target&&e.target.tagName)||'';
+    if(tag==='INPUT'||tag==='TEXTAREA')return;
+    if(e.key==='Enter'){
+      /* a focused petal or button handles its own Enter */
+      if(e.target&&e.target.closest&&e.target.closest('button,a,.key'))return;
+      e.preventDefault(); submit(); return;
+    }
+    if(e.key==='Backspace'){ e.preventDefault(); delLetter(); return; }
+    if(e.key===' '&&!(e.target&&e.target.closest&&e.target.closest('button,a,.key'))){
+      e.preventDefault(); shuffle(); return; }
+    const ch=(e.key||'').toUpperCase();
+    if(ch.length===1&&LETTERS.has(ch)){
+      e.preventDefault(); addLetter(ch);
+      const k=order.indexOf(ch);
+      flash(k>=0?petalEls[k].g:heart);
+    }
+  });
+
+  XW.wireChrome({
+    title:()=>'Word Flower',
+    menu:act=>{
+      if(act==='more')return XW.goArchive();
+      if(act==='howto')return XW.openOverlay('howtoOverlay');
+      if(act==='support')return XW.openOverlay('supportOverlay');
+      if(act==='save'){ save(); XW.dialog('Save','Your puzzle progress is saved.'); return; }
+      if(act==='restart'){
+        XW.dialog('Start Again','Are you sure you want to restart the puzzle?',()=>{
+          found.clear(); hint=null; entry=''; lastFound=null; revealed=false; won=false;
+          XW.timer.reset(); XW.timer.stopped=false;
+          $('#timerPill').classList.remove('paused');
+          render();
+        },{ok:'Start again',cancel:'Cancel'});
+      }
+    }
+  });
+
+  /* core.js stores the confirm action but leaves the buttons to the game */
+  $('#dlgClose').onclick=()=>XW.closeOverlay($('#dialogOverlay'));
+  $('#dlgOk').onclick=()=>{
+    const a=XW.dlgAction; XW.closeOverlay($('#dialogOverlay')); if(a)a();
+  };
+
+  $('#settingsBtn').onclick=()=>XW.openOverlay('settingsOverlay');
+  $('#applySettings').onclick=()=>{
+    $('#timerPill').classList.toggle('collapsed',!$('#optTimerShown').checked);
+    XW.closeOverlay($('#settingsOverlay'));
+  };
+  /* clicking the timer hides or shows it, as in the crossword -- it never
+     pauses it, so the time is never struck through. Settings stays in step. */
+  $('#timerPill').addEventListener('click',()=>{
+    const tp=$('#timerPill'), hide=!tp.classList.contains('collapsed');
+    tp.classList.toggle('collapsed',hide); $('#optTimerShown').checked=!hide;
+    XW.announce(hide?'Timer hidden':'Timer shown');
+  });
+
+  $('#ticketNo').textContent=(function(){
+    let h=0; for(let i=0;i<puzId.length;i++) h=(Math.imul(h,31)+puzId.charCodeAt(i))>>>0;
+    const hex=n=>((n>>>0).toString(16)).slice(-7).padStart(7,'0');
+    return 'lat-'+hex(h)+'-'+hex(h^0x9e3779b9);
+  })();
+  $('#copyrightLine').textContent='© '+new Date().getFullYear()+' Tribune Content Agency, LLC';
+
+  setInterval(save,10000);
+  XW.timer.onTick=s=>{ $('#timer').textContent=XW.fmtTime(s); };
+  XW.timer.start(XW.timer.secs);
+  if(won||revealed)XW.timer.stop();
+  XW.emit('game_start',{puzzleId:puzId});
+  paintFlower();
+  render();
+  if(res.substituted) setTimeout(()=>XW.toast('“'+res.substituted+'” is not available — showing the latest puzzle'),400);
+})();
+</script>
+</body>
+</html>

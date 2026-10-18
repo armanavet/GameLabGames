@@ -806,10 +806,11 @@
   /* ---------- wiring ---------- */
   XW.wireChrome({
     title:()=>'Turnspell',
-    toggleTimer:()=>{ XW.timer.stopped=!XW.timer.stopped;
-      if(!XW.timer.stopped) XW.timer._last=Date.now();
-      $('#timerPill').classList.toggle('paused',XW.timer.stopped);
-      XW.announce(XW.timer.stopped?'Timer paused':'Timer running'); },
+    /* clicking the timer hides or shows it, as in the crossword -- it never
+       pauses it, so the time is never struck through. Settings stays in step. */
+    toggleTimer:()=>{ const tp=$('#timerPill'), hide=!tp.classList.contains('collapsed');
+      tp.classList.toggle('collapsed',hide); $('#optTimerShown').checked=!hide;
+      XW.announce(hide?'Timer hidden':'Timer shown'); },
     menu:act=>{
       if(act==='more') XW.goArchive();
       else if(act==='howto') XW.openOverlay('howtoOverlay');

@@ -119,11 +119,55 @@ function validateWordSearch(o) {
   return errs;
 }
 
+/* Word Flower: seven letters, and every accepted word listed by the editor.
+   A copy of WORDFLOWER.validate in wordflower-engine.js, which the player
+   runs on every payload too -- change one, change the other. */
+function validateWordFlower(raw) {
+  const MIN_LEN = 4, MIN_WORDS = 15, MAX_WORDS = 80;
+  const up = s => String(s == null ? '' : s).trim().toUpperCase();
+  const errs = [];
+  if (!raw || typeof raw !== 'object') return ['the puzzle is not a JSON object'];
+  const center = up(raw.center);
+  const petals = Array.isArray(raw.petals) ? raw.petals.map(up) : null;
+  if (!/^[A-Z]$/.test(center)) errs.push('"center" must be a single letter A-Z');
+  if (!petals || petals.length !== 6) errs.push('"petals" must be a list of 6 letters');
+  else {
+    petals.forEach((p, i) => {
+      if (!/^[A-Z]$/.test(p)) errs.push('petal ' + (i + 1) + ' must be a single letter A-Z');
+    });
+    if (new Set(petals.concat(center)).size !== 7)
+      errs.push('the 7 letters (6 petals and the center) must all be different');
+  }
+  if (!Array.isArray(raw.words) || !raw.words.length) errs.push('missing "words"');
+  if (errs.length) return errs;
+
+  const letters = new Set(petals.concat(center));
+  const seen = new Set();
+  let pangrams = 0;
+  raw.words.forEach((w, i) => {
+    const word = up(w);
+    const tag = 'word ' + (i + 1) + ' (' + (word || 'blank') + ')';
+    if (!/^[A-Z]+$/.test(word)) { errs.push(tag + ' must be letters A-Z only'); return; }
+    if (word.length < MIN_LEN) errs.push(tag + ' is shorter than ' + MIN_LEN + ' letters');
+    if (word.indexOf(center) < 0) errs.push(tag + ' does not use the center letter ' + center);
+    const stray = [...new Set(word.split('').filter(c => !letters.has(c)))];
+    if (stray.length) errs.push(tag + ' uses ' + stray.join(', ') + ', which is not in the flower');
+    if (seen.has(word)) errs.push(tag + ' is listed twice');
+    seen.add(word);
+    if (!stray.length && new Set(word).size === 7) pangrams++;
+  });
+  if (!pangrams) errs.push('no pangram: at least one word must use all 7 letters');
+  if (seen.size < MIN_WORDS || seen.size > MAX_WORDS)
+    errs.push('there are ' + seen.size + ' words; a flower needs ' + MIN_WORDS + '-' + MAX_WORDS);
+  return errs;
+}
+
 const VALIDATORS = {
   crossword: validateCrossword,
   midi: validateCrossword,
   mini: validateCrossword,
   wordsearch: validateWordSearch,
+  wordflower: validateWordFlower,
 };
 
 const whiteCells = o => o.grid.reduce((n, row) => n + row.filter(c => c !== null).length, 0);
@@ -141,6 +185,12 @@ const SUMMARY = {
   wordsearch: o => {
     const W = o.W || 15, H = o.H || 15;
     return { size: `${W}x${H}`, cells: W * H, words: (o.words || []).length };
+  },
+  /* `cells` is what the archive divides a reader's progress by, and for a
+     flower that is the number of words to find */
+  wordflower: o => {
+    const n = new Set((o.words || []).map(w => String(w).trim().toUpperCase())).size;
+    return { size: `${n} words`, cells: n, words: n };
   },
 };
 

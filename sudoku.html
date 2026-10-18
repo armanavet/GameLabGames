@@ -1037,15 +1037,12 @@
     },
   });
 
-  /* "Timer can be stopped by just clicking on it. The timer can be hidden from
-     the settings" — two separate controls, so the click pauses rather than
-     hides. Resuming re-bases the clock so paused seconds are not billed. */
+  /* clicking the timer hides or shows it, as in the crossword -- it never
+     pauses it, so the time is never struck through. Settings stays in step. */
   $('#timerPill').addEventListener('click',()=>{
-    XW.timer.stopped=!XW.timer.stopped;
-    if(!XW.timer.stopped) XW.timer._last=Date.now();
-    $('#timerPill').classList.toggle('paused',XW.timer.stopped);
-    $('#timerPill').setAttribute('aria-pressed',String(XW.timer.stopped));
-    XW.announce(XW.timer.stopped?'Timer paused':'Timer running');
+    const tp=$('#timerPill'), hide=!tp.classList.contains('collapsed');
+    tp.classList.toggle('collapsed',hide); $('#optTimerShown').checked=!hide;
+    XW.announce(hide?'Timer hidden':'Timer shown');
     focusCur();
   });
 
