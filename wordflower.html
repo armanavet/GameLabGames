@@ -13,10 +13,10 @@
   /* Word Flower -- laid out from the reference frame: the stage track across
      the top, the flower on the left with its four buttons under it, and the
      found words in a panel on the right. The flower's blues are the frame's. */
-  /* Colours are the design files' own: petals #BBE8FF ruled #54AFFF
-     ("Flower petals.svg"), centre #82CDFF ("Flower center.svg"), stage
-     flowers #707070 reached and #C5C5C5 not ("Achievement flower.svg"). */
-  :root{--petal:#bbe8ff;--petal-hit:#8fd8ff;--petal-rule:#54afff;--heart:#82cdff;
+  /* Colours are the design files' own: petals #FFFF99 rimmed #FFD000
+     ("Pressed blossom petals.svg"), centre #F9DE67 ("Flower center.svg"),
+     stage flowers #707070 reached and #C5C5C5 not ("Achievement flower.svg"). */
+  :root{--petal:#ffff99;--petal-hit:#ffe95c;--petal-rule:#ffd000;--heart:#f9de67;
         --stage-on:#707070;--stage-off:#c5c5c5;--icon:#494949;
         --wf-blue:#1d7fd6;--hint:#ffd84d}
   #app{max-width:1040px}
@@ -90,26 +90,26 @@
   .hintnote{margin:4px 0 0;text-align:center;font-size:11.5px;color:#7a7a7a}
 
   /* ---------- the flower ----------
-     Built from the design files rather than redrawn: the six petal outlines
-     of "Flower petals.svg" and the centre of "Flower center.svg", at their
-     own coordinates. The petals' rule is an INNER stroke -- 8 wide, clipped
-     to the petal so only the inside 4 shows, which is what the file's mask
-     does -- so neighbouring petals meet in the dark blue seams of the frame. */
-  .flower{width:min(266px,100%);aspect-ratio:246/260;margin:12px 0 6px;display:block;overflow:visible;
+     Built from the design files rather than redrawn: the six petals of
+     "Pressed blossom petals.svg" and the disc of "Flower center.svg", at
+     their own coordinates. The petals' gold rim is an OUTER stroke -- 17
+     wide, masked so only the half outside the petals shows, which is what
+     the file's mask does -- so the rim never eats into a petal's colour. */
+  .flower{width:min(284px,100%);aspect-ratio:268/283;margin:12px 0 6px;display:block;overflow:visible;
           touch-action:manipulation;user-select:none;-webkit-user-select:none;
           -webkit-tap-highlight-color:transparent}
   .flower .pf{fill:var(--petal);transition:fill .12s}
-  .flower .pr{fill:none;stroke:var(--petal-rule);stroke-width:8}
+  .flower .pr{fill:none;stroke:var(--petal-rule);stroke-width:17;stroke-linejoin:round}
   .flower .heart circle{fill:var(--heart);transition:fill .12s}
   .flower .key{cursor:pointer;outline:none}
-  .flower .key text{font-family:'Inter',var(--font);font-size:25px;font-weight:700;fill:#161616;
+  .flower .key text{font-family:'Inter',var(--font);font-size:26px;font-weight:700;fill:#161616;
                     text-anchor:middle;dominant-baseline:central;pointer-events:none;
                     transition:opacity .14s}
-  .flower .heart text{font-size:28px;font-weight:800}
+  .flower .heart text{font-size:29px;font-weight:800}
   .flower .petal.hit .pf,.flower .petal:active .pf{fill:var(--petal-hit)}
-  .flower .heart.hit circle,.flower .heart:active circle{fill:#5fbcff}
-  .flower .key:focus-visible .pr{stroke:#0b4f8a;stroke-width:12}
-  .flower .heart:focus-visible circle{stroke:#0b4f8a;stroke-width:3}
+  .flower .heart.hit circle,.flower .heart:active circle{fill:#f0c93a}
+  .flower .key:focus-visible .pr{stroke:#b07d00}
+  .flower .heart:focus-visible circle{stroke:#b07d00;stroke-width:3}
   .flower.shuffling .petal text{opacity:0}
 
   /* ---------- the four buttons ---------- */
@@ -206,7 +206,7 @@
         <p class="hintnote" id="hintnote">Tap the eye to show another letter</p>
       </div>
 
-      <svg class="flower" id="flower" viewBox="0 0 246 260" role="group" aria-label="Letters"></svg>
+      <svg class="flower" id="flower" viewBox="0 0 268 283" role="group" aria-label="Letters"></svg>
 
       <div class="ctrls">
         <!-- icons: the design's a.svg (hint), b.svg (shuffle) and Vector-1.svg
@@ -424,22 +424,23 @@
   const score=()=>[...found].reduce((n,w)=>n+W.pointsFor(w,P),0);
 
   /* ---------- the flower ----------
-     The design's own geometry: "Flower petals.svg" (246x260, centred on
-     123,130) and "Flower center.svg" (a 40-radius disc with a soft white
-     inner highlight). Drawn once; a shuffle only changes which letter each
-     petal carries. Petals run clockwise from the top. */
+     The design's own geometry: "Pressed blossom petals.svg" (268x283, centred
+     on 133.654,141) and "Flower center.svg" (a 40-radius disc with a soft
+     white inner highlight). Drawn once; a shuffle only changes which letter
+     each petal carries. Petals run clockwise from the top. */
   const flower=$('#flower');
-  const CX=123, CY=130;
+  const CX=133.654, CY=141;
   const PETALS=[
-    'M123 115.669C106.612 94.1732 62.5687 57.3228 73.8356 24.5669C84.0782 -8.18898 161.922 -8.18898 172.164 24.5669C183.431 57.3228 139.388 94.1732 123 115.669Z',
-    'M135.414 122.835C145.851 97.8992 155.766 41.3543 189.782 34.7315C223.285 27.2181 262.207 94.5929 238.946 119.835C216.197 145.969 162.239 126.274 135.414 122.835Z',
-    'M135.414 137.165C162.239 133.726 216.197 114.031 238.946 140.165C262.207 165.407 223.285 232.782 189.782 225.269C155.766 218.646 145.851 162.101 135.414 137.165Z',
-    'M123 144.331C139.388 165.827 183.431 202.677 172.164 235.433C161.922 268.189 84.0782 268.189 73.8356 235.433C62.5687 202.677 106.612 165.827 123 144.331Z',
-    'M110.586 137.165C100.149 162.101 90.234 218.646 56.2183 225.269C22.7148 232.782 -16.207 165.407 7.0539 140.165C29.8027 114.031 83.7606 133.726 110.586 137.165Z',
-    'M110.586 122.835C83.7606 126.274 29.8027 145.969 7.0539 119.835C-16.207 94.5929 22.7148 27.2181 56.2183 34.7315C90.234 41.3543 100.149 97.8992 110.586 122.835Z'
+    'M133.654 11C122.729 21 103.064 34 98.6937 55C94.3235 75 111.803 98 124.914 122C130.741 131.333 136.568 131.333 142.394 122C155.505 98 172.985 75 168.615 55C164.244 34 144.58 21 133.654 11Z',
+    'M256.654 76C241.73 72.34 219.598 63.251 197.543 70.287C176.435 76.823 163.413 102.179 147.261 124.572C141.344 133.857 144.257 138.476 156.001 138.428C185.264 136.821 215.765 139.177 232.504 125.713C250.188 111.749 252.655 89.66 256.654 76Z',
+    'M256.654 206C252.655 192.34 250.188 170.251 232.504 156.287C215.765 142.823 185.264 145.179 156.001 143.572C144.257 143.524 141.344 148.143 147.261 157.428C163.413 179.821 176.435 205.177 197.543 211.713C219.598 218.749 241.73 209.66 256.654 206Z',
+    'M133.654 271C144.58 261 164.244 248 168.615 227C172.985 207 155.505 184 142.394 160C136.568 150.667 130.741 150.667 124.914 160C111.803 184 94.3235 207 98.6937 227C103.064 248 122.729 261 133.654 271Z',
+    'M10.6541 206C25.5787 209.66 47.7106 218.749 69.7655 211.713C90.8734 205.177 103.895 179.821 120.048 157.428C125.964 148.143 123.051 143.524 111.307 143.572C82.044 145.179 51.5428 142.823 34.8041 156.287C17.1204 170.251 14.6533 192.34 10.6541 206Z',
+    'M10.6541 76C14.6533 89.66 17.1204 111.749 34.8041 125.713C51.5428 139.177 82.044 136.821 111.307 138.428C123.051 138.476 125.964 133.857 120.048 124.572C103.895 102.179 90.8734 76.823 69.7655 70.287C47.7106 63.251 25.5787 72.34 10.6541 76Z'
   ];
-  /* where a petal's letter sits: out along its axis, at the petal's widest */
-  const LETTER_R=80;
+  /* where a petal's letter sits: out along its axis, in the middle of the
+     part of the petal the centre disc leaves showing */
+  const LETTER_R=84;
   const mk=(tag,attrs,parent)=>{
     const n=document.createElementNS(SVGNS,tag);
     for(const k in attrs) n.setAttribute(k,attrs[k]);
@@ -458,13 +459,18 @@
   mk('feColorMatrix',{type:'matrix',values:'0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25098 0'},shade);
   mk('feBlend',{mode:'normal',in2:'SourceGraphic'},shade);
 
+  /* the rim is drawn only OUTSIDE the petals: white everywhere, black over
+     all six -- the file's own mask, so one petal's rim never paints over
+     another petal either */
+  const rim=mk('mask',{id:'wfRim',maskUnits:'userSpaceOnUse',x:'-2',y:'-2',width:'272',height:'287'},defs);
+  mk('rect',{x:'-2',y:'-2',width:'272',height:'287',fill:'#fff'},rim);
+  mk('path',{d:PETALS.join(''),fill:'#000'},rim);
+
   const petalEls=[];
   PETALS.forEach((d,k)=>{
-    const clip=mk('clipPath',{id:'wfPetal'+k},defs);
-    mk('path',{d:d},clip);
     const g=mk('g',{class:'key petal',role:'button',tabindex:'0','data-k':k},flower);
     mk('path',{class:'pf',d:d},g);
-    mk('path',{class:'pr',d:d,'clip-path':'url(#wfPetal'+k+')'},g);
+    mk('path',{class:'pr',d:d,mask:'url(#wfRim)'},g);
     const a=k*Math.PI/3;
     const t=mk('text',{x:(CX+LETTER_R*Math.sin(a)).toFixed(1),y:(CY-LETTER_R*Math.cos(a)).toFixed(1)},g);
     petalEls.push({g:g,t:t});
