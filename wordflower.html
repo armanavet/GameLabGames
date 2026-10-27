@@ -180,6 +180,11 @@
     .wempty{margin:4px;font-size:12px}
     .flower{width:min(270px,76vw);margin:8px 0 4px}
     .entry{height:44px;font-size:25px}
+    /* the words panel sits right above the entry here, so the message is
+       smaller, rests on the entry's top edge, and the play column steps down
+       just enough for it to clear the panel */
+    .play{margin-top:8px}
+    .msg{bottom:calc(100% - 4px);padding:4px 12px;font-size:12.5px;z-index:3}
     .ctrls{gap:16px}
     .cbtn{width:48px;height:48px}
     .caption{display:none}
