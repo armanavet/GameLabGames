@@ -172,10 +172,14 @@
   const flowerArt = flowerMark(52, 'currentColor', 2);
   const flowerRow = flowerMark(35, ROW_INK, 1.4);
 
+  const PIECE_D = 'M6 6h16a5 5 0 1 1 8 0h16v16a5 5 0 1 0 0 8v16H30a5 5 0 1 0-8 0H6V30a5 5 0 1 1 0-8z';
   const piece =
     '<svg viewBox="0 0 52 52" aria-hidden="true">' +
-    '<path d="M6 6h16a5 5 0 1 1 8 0h16v16a5 5 0 1 0 0 8v16H30a5 5 0 1 0-8 0H6V30a5 5 0 1 1 0-8z" ' +
-    'fill="#fff" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>';
+    '<path d="' + PIECE_D + '" fill="#fff" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>';
+  /* the same piece at the archive row's size and ink */
+  const pieceRow =
+    '<svg viewBox="0 0 52 52" aria-hidden="true">' +
+    '<path d="' + PIECE_D + '" fill="none" stroke="' + ROW_INK + '" stroke-width="3" stroke-linejoin="round"/></svg>';
 
   const search =
     '<svg viewBox="0 0 52 52" aria-hidden="true">' +
@@ -211,6 +215,8 @@
     /* periwinkle: the flower's own blue would sit inside the sudoku family,
        so the card takes the next blue along */
     wordflower: '#5b6cf0',
+    /* a warm coral, the one corner of the wheel no other game has taken */
+    jigsaw: '#e8604c',
   };
 
   window.GAMES = {
@@ -268,10 +274,18 @@
       tint: TINT.sudoku, tintInk: '#fff',
       art: nums(3), archiveArt: sudokuRow, live: true
     },
+    /* Jigsaw is AUTHORED: an editor chooses each photo and stands behind its
+       right to be published, so the payload names an image and its credit,
+       and how many pieces it is cut into. The archive shows each day's
+       photo as its row mark (photoThumbs). */
     jigsaw: {
       label: 'Jigsaw', short: 'Jigsaw',
       blurb: 'Reassemble a photograph, one piece at a time.',
-      art: piece
+      archiveBlurb: 'A new photograph of Los Angeles to piece together every day.',
+      player: 'jigsaw.html', archive: 'archive.html', manifest: 'jigsaw.json',
+      api: API, photoThumbs: true,
+      tint: TINT.jigsaw, tintInk: '#fff',
+      art: piece, archiveArt: pieceRow, live: true
     },
     /* Word Search is HYBRID. An editor uploads themed puzzles by hand — that
        is the path that carries a theme and a byline — and any date nobody

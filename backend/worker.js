@@ -13,10 +13,12 @@
    ── Public (no auth, CORS open) ──────────────────────────────────────────────
    GET  /api/index?game=crossword     index of PUBLISHED puzzles only
    GET  /api/puzzle/<id>?game=…       one payload; 404 until it is published
+   GET  /api/image/<id>.jpg?game=…    a puzzle's photo (Jigsaw); 404 until it is published
 
    ── Admin (X-Admin-Token, compared trimmed) ────────────────────────────────────────────────────
    GET    /api/admin/list?game=…      everything, including scheduled + drafts
    POST   /api/admin/upload           { game, publishAt?, puzzle:{…} }
+   PUT    /api/admin/image/<id>       the photo itself, as the request body
    PATCH  /api/admin/<id>             { publishAt?, title?, author?, editor?, status? }
    DELETE /api/admin/<id>
 
@@ -26,6 +28,8 @@
                      key because ids are only unique within a game — once ids
                      are dates, two games both publishing 2026-08-18 would
                      otherwise overwrite each other's payload.
+     i:<game>:<id>   a puzzle's photo (Jigsaw), the bytes as uploaded, with its
+                     content type kept in the KV metadata
    ========================================================================= */
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' };
@@ -33,7 +37,7 @@ const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' };
 function cors(env) {
   return {
     'access-control-allow-origin': env.ALLOW_ORIGIN || '*',
-    'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+    'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'access-control-allow-headers': 'content-type,x-admin-token',
     'access-control-max-age': '86400',
   };
@@ -46,6 +50,12 @@ const err = (env, status, message) => json(env, { error: message }, status);
 
 /* Ids are unique per game, not globally, so the game is part of the key. */
 const payloadKey = (game, id) => `p:${game}:${id}`;
+const imageKey = (game, id) => `i:${game}:${id}`;
+
+/* Photos are stored as sent: the admin page has already scaled them down,
+   so this is a ceiling for a mistake, not a budget. KV allows 25 MB. */
+const IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const IMAGE_MAX = 8 * 1024 * 1024;
 
 const slug = s => (String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'puzzle');
 const nowISO = () => new Date().toISOString();
@@ -162,12 +172,32 @@ function validateWordFlower(raw) {
   return errs;
 }
 
+/* Jigsaw: a photo and its credit. A copy of JIGSAW.validate in
+   jigsaw-engine.js -- change one, change the other. The image itself is not
+   stored here: the payload names where it lives. */
+function validateJigsaw(o) {
+  const errs = [];
+  if (!o || typeof o !== 'object') return ['the puzzle is not a JSON object'];
+  if (!o.title || !String(o.title).trim()) errs.push('missing "title"');
+  const img = String(o.image || '').trim();
+  if (!img) errs.push('missing "image"');
+  else if (!/^(https:\/\/|[\w./-]+$)/.test(img) || !/\.(jpe?g|png|webp)(\?.*)?$/i.test(img))
+    errs.push('"image" must be a .jpg, .png or .webp, as a same-site path or an https URL');
+  if (!o.credit || !String(o.credit).trim()) errs.push('missing "credit": every photo needs one');
+  if (o.pieces != null && !(Number.isInteger(o.pieces) && o.pieces >= 6 && o.pieces <= 200))
+    errs.push('"pieces" must be a whole number from 6 to 200');
+  if (o.background != null && !/^#[0-9a-f]{6}$/i.test(String(o.background)))
+    errs.push('"background" must be a colour like #c8d2de');
+  return errs;
+}
+
 const VALIDATORS = {
   crossword: validateCrossword,
   midi: validateCrossword,
   mini: validateCrossword,
   wordsearch: validateWordSearch,
   wordflower: validateWordFlower,
+  jigsaw: validateJigsaw,
 };
 
 const whiteCells = o => o.grid.reduce((n, row) => n + row.filter(c => c !== null).length, 0);
@@ -188,6 +218,12 @@ const SUMMARY = {
   },
   /* `cells` is what the archive divides a reader's progress by, and for a
      flower that is the number of words to find */
+  /* the piece count is the puzzle's size, and its own photo is the archive
+     row's mark -- the archive draws the small copy itself, so no second file */
+  jigsaw: o => {
+    const n = o.pieces || 30;
+    return { size: `${n} pieces`, cells: n, image: o.image || '' };
+  },
   wordflower: o => {
     const n = new Set((o.words || []).map(w => String(w).trim().toUpperCase())).size;
     return { size: `${n} words`, cells: n, words: n };
@@ -252,6 +288,22 @@ export default {
         });
       }
 
+      /* A photo is as secret as the puzzle it belongs to: until that puzzle
+         is published, its picture 404s too. Served with CORS open, which the
+         player needs to draw the photo into its canvas. */
+      const imgMatch = path.match(/^\/api\/image\/([^/]+?)\.(jpg|png|webp)$/);
+      if (imgMatch && request.method === 'GET') {
+        const id = decodeURIComponent(imgMatch[1]);
+        const entry = (await readIndex(env, game)).find(e => e.id === id);
+        if (!entry || !isLive(entry, at)) return err(env, 404, 'not found');
+        const { value, metadata } = await env.PUZZLES.getWithMetadata(imageKey(game, id), { type: 'arrayBuffer' });
+        if (!value) return err(env, 404, 'not found');
+        return new Response(value, {
+          headers: { ...cors(env), 'content-type': (metadata && metadata.type) || 'image/jpeg',
+                     'cache-control': 'public, max-age=86400' },
+        });
+      }
+
       /* ---------- admin ---------- */
       if (path.startsWith('/api/admin')) {
         const authFail = adminError();
@@ -293,6 +345,21 @@ export default {
           return json(env, { ok: true, replaced: i >= 0, entry: { ...entry, live: isLive(entry, at) } });
         }
 
+        /* the photo for a Jigsaw puzzle, sent before the puzzle itself; the
+           reply is the address to put in the puzzle's "image" */
+        const upMatch = path.match(/^\/api\/admin\/image\/([^/]+)$/);
+        if (upMatch && request.method === 'PUT') {
+          const id = slug(decodeURIComponent(upMatch[1]));
+          const type = String(request.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+          if (!IMAGE_TYPES[type]) return err(env, 415, 'send the photo as image/jpeg, image/png or image/webp');
+          const bytes = await request.arrayBuffer();
+          if (!bytes.byteLength) return err(env, 400, 'the photo is empty');
+          if (bytes.byteLength > IMAGE_MAX) return err(env, 413, 'the photo is over 8 MB; scale it down first');
+          await env.PUZZLES.put(imageKey(game, id), bytes, { metadata: { type } });
+          return json(env, { ok: true, id, bytes: bytes.byteLength,
+            url: `${url.origin}/api/image/${encodeURIComponent(id)}.${IMAGE_TYPES[type]}?game=${encodeURIComponent(game)}` });
+        }
+
         const idMatch = path.match(/^\/api\/admin\/([^/]+)$/);
         if (idMatch && idMatch[1] !== 'list' && idMatch[1] !== 'upload') {
           const id = decodeURIComponent(idMatch[1]);
@@ -313,6 +380,7 @@ export default {
             list.splice(i, 1);
             await writeIndex(env, game, list);
             await env.PUZZLES.delete(payloadKey(game, id));
+            await env.PUZZLES.delete(imageKey(game, id));   // a no-op for games without photos
             return json(env, { ok: true, deleted: id });
           }
         }

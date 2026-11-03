@@ -34,6 +34,8 @@
   .mini{width:35px;height:35px;flex:none;border:1px solid var(--ink);border-radius:5px;
         display:flex;align-items:center;justify-content:center;color:var(--ink);padding:3px}
   .mini svg{width:100%;height:100%;display:block}
+  .mini.photo{border:none;overflow:hidden;background:#e8e8e8}
+  .mini.photo img{width:100%;height:100%;object-fit:cover;display:block}
   .det{flex:1 0 0;min-width:0;display:flex;flex-direction:column;color:var(--ink)}
   .det .t{font-weight:700;font-size:18px;line-height:normal}
   .det .b{font-weight:400;font-size:14px;line-height:1.4}
@@ -185,7 +187,8 @@
       id:r.id, title:r.title||r.id, date:r.date,
       author:r.author||(r.byline&&r.byline.constructor)||'',
       editor:r.editor||(r.byline&&r.byline.editor)||'',
-      size:r.size||(r.meta&&r.meta.size)||'', cells:r.cells||0
+      size:r.size||(r.meta&&r.meta.size)||'', cells:r.cells||0,
+      image:r.image||''
     }));
   }else{
     items=Object.keys(man.puzzles||{}).map(id=>{
@@ -237,6 +240,27 @@
     return {kind:answered?'answered':'started',
             label:answered?(Math.round(pct*100)+'% Answered'):'Started', pct:pct};
   }
+  /* A photo puzzle's row mark is a small copy of its own photo, drawn here
+     rather than stored as a second file. The first time, the photo itself
+     loads (lazily, as its row scrolls into view) and a 70px copy is kept in
+     this browser; every later visit uses that copy and loads nothing. The
+     player keeps the same copy when a puzzle is played. */
+  const THUMB_KEY='lat:games:thumb:';
+  function photoThumb(img,src){
+    try{ const kept=localStorage.getItem(THUMB_KEY+src); if(kept){ img.src=kept; return; } }catch(_){}
+    /* a photo kept by the API is cross-origin; without CORS the copy can't be read back */
+    if(/^https?:/i.test(src)) img.crossOrigin='anonymous';
+    img.onload=()=>{
+      img.onload=null;
+      try{
+        const c=document.createElement('canvas'); c.width=c.height=70;
+        const s=Math.min(img.naturalWidth,img.naturalHeight);
+        c.getContext('2d').drawImage(img,(img.naturalWidth-s)/2,(img.naturalHeight-s)/2,s,s,0,0,70,70);
+        localStorage.setItem(THUMB_KEY+src,c.toDataURL('image/jpeg',0.72));
+      }catch(_){}
+    };
+    img.src=src;
+  }
   const R=10, C=2*Math.PI*R;
   function ringSVG(s){
     const off=C*(1-s.pct);
@@ -260,12 +284,17 @@
     const wrap=document.createElement('div');wrap.className='aitem';
     const row=document.createElement('button');row.className='row';
     /* a game may supply a mark drawn for this 35px box rather than the hub's */
-    const mini='<div class="mini">'+(G.archiveArt||G.art||'')+'</div>';
+    /* ...or, for a game whose puzzles ARE pictures, the day's own picture */
+    const mini=(G.photoThumbs&&it.image)
+      ?'<div class="mini photo"><img alt="" loading="lazy"/></div>'
+      :'<div class="mini">'+(G.archiveArt||G.art||'')+'</div>';
     const st=state(it);
     row.innerHTML=mini+
       '<div class="det"><div class="t"></div><div class="b"></div></div>'+
       (st?'<div class="status '+st.kind+'">'+ringSVG(st)+'<span class="pill2">'+st.label+'</span></div>':'')+
       '<div class="chev"><svg width="10" height="16" aria-hidden="true"><use href="icons.svg#i-chevron-lg"/></svg></div>';
+    const thumb=row.querySelector('.mini.photo img');
+    if(thumb) photoThumb(thumb,it.image);
     row.querySelector('.t').textContent=label(it);
     row.querySelector('.b').textContent=byline(it);
     if(st){

@@ -1,0 +1,126 @@
+{
+  "default": "jigsaw-2026-10-19",
+  "_note": "Authored Jigsaw puzzles, read when the backend has none. Each payload names an image (the archive draws its own small copy for the row mark) (kept in puzzles/jigsaw/) and its credit; every photo here is public domain, from Carol M. Highsmith's archive at the Library of Congress, with its Wikimedia Commons page in \"source\". The payload format is described at the top of jigsaw-engine.js.",
+  "index": [
+    {
+      "id": "jigsaw-2026-10-10",
+      "title": "The Getty Center",
+      "date": "2026-10-10",
+      "size": "30 pieces",
+      "cells": 30,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/jigsaw-2026-10-10.json",
+      "image": "puzzles/jigsaw/getty-center.jpg"
+    },
+    {
+      "id": "jigsaw-2026-10-11",
+      "title": "The Hollywood Bowl",
+      "date": "2026-10-11",
+      "size": "30 pieces",
+      "cells": 30,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/jigsaw-2026-10-11.json",
+      "image": "puzzles/jigsaw/hollywood-bowl.jpg"
+    },
+    {
+      "id": "jigsaw-2026-10-12",
+      "title": "Union Station",
+      "date": "2026-10-12",
+      "size": "30 pieces",
+      "cells": 30,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/jigsaw-2026-10-12.json",
+      "image": "puzzles/jigsaw/union-station.jpg"
+    },
+    {
+      "id": "jigsaw-2026-10-13",
+      "title": "Olvera Street",
+      "date": "2026-10-13",
+      "size": "30 pieces",
+      "cells": 30,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/jigsaw-2026-10-13.json",
+      "image": "puzzles/jigsaw/olvera-street.jpg"
+    },
+    {
+      "id": "jigsaw-2026-10-14",
+      "title": "Venice Beach Cottages",
+      "date": "2026-10-14",
+      "size": "30 pieces",
+      "cells": 30,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/jigsaw-2026-10-14.json",
+      "image": "puzzles/jigsaw/venice-cottages.jpg"
+    },
+    {
+      "id": "jigsaw-2026-10-15",
+      "title": "Watts Towers",
+      "date": "2026-10-15",
+      "size": "30 pieces",
+      "cells": 30,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/jigsaw-2026-10-15.json",
+      "image": "puzzles/jigsaw/watts-towers.jpg"
+    },
+    {
+      "id": "jigsaw-2026-10-16",
+      "title": "Walt Disney Concert Hall",
+      "date": "2026-10-16",
+      "size": "30 pieces",
+      "cells": 30,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/jigsaw-2026-10-16.json",
+      "image": "puzzles/jigsaw/disney-concert-hall.jpg"
+    },
+    {
+      "id": "jigsaw-2026-10-17",
+      "title": "Santa Monica Pier at Night",
+      "date": "2026-10-17",
+      "size": "30 pieces",
+      "cells": 30,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/jigsaw-2026-10-17.json",
+      "image": "puzzles/jigsaw/santa-monica-pier.jpg"
+    },
+    {
+      "id": "jigsaw-2026-10-18",
+      "title": "The Hollywood Sign",
+      "date": "2026-10-18",
+      "size": "30 pieces",
+      "cells": 30,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/jigsaw-2026-10-18.json",
+      "image": "puzzles/jigsaw/hollywood-sign.jpg"
+    },
+    {
+      "id": "jigsaw-2026-10-19",
+      "title": "Griffith Observatory",
+      "date": "2026-10-19",
+      "size": "30 pieces",
+      "cells": 30,
+      "author": "",
+      "editor": "",
+      "status": "published",
+      "payloadUrl": "puzzles/jigsaw-2026-10-19.json",
+      "image": "puzzles/jigsaw/griffith-observatory.jpg"
+    }
+  ]
+}

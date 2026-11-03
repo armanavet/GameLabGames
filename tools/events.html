@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="robots" content="noindex"/>
+<title>Game messages</title>
+<script src="../games.js"></script>
+<style>
+  /* A stand-in host page that frames one game and lists every message the
+     game posts to it, as latimes.com would receive them. Unlike play.html it
+     never follows a "navigate" message, so a whole session stays on one log. */
+  body{margin:0;font:14px/1.4 system-ui,sans-serif;background:#f4f4f4;color:#111}
+  header{display:flex;gap:10px;align-items:center;padding:10px 14px;background:#fff;border-bottom:1px solid #ddd;flex-wrap:wrap}
+  header b{margin-right:6px}
+  select,input,button{font:inherit;padding:5px 8px}
+  main{display:grid;grid-template-columns:minmax(360px,1fr) minmax(320px,440px);height:calc(100vh - 54px)}
+  iframe{width:100%;height:100%;border:none;background:#fff}
+  #log{overflow:auto;padding:10px;font:12px/1.45 ui-monospace,Consolas,monospace;background:#12161c;color:#d7dde5}
+  #log div{padding:6px 0;border-bottom:1px solid #222a33;white-space:pre-wrap;word-break:break-all}
+  #log .ev{color:#8fe3b0;font-weight:700}
+  #log .nav{color:#ffc56b}
+  @media(max-width:760px){ main{grid-template-columns:1fr;grid-template-rows:60vh 1fr} }
+</style>
+</head>
+<body>
+<header>
+  <b>Game messages</b>
+  <select id="game"></select>
+  <select id="view"><option value="puzzle">Player</option><option value="archive">Archive</option></select>
+  <input id="pid" placeholder="puzzle id (optional)" size="18"/>
+  <button id="go" type="button">Load</button>
+  <button id="clear" type="button">Clear log</button>
+  <button id="copy" type="button">Copy as JSON</button>
+</header>
+<main>
+  <iframe id="frame" allow="web-share; fullscreen" title="Game"></iframe>
+  <div id="log"></div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const q = new URLSearchParams(location.search);
+window.messages = [];
+
+Object.entries(window.GAMES).forEach(([id, g]) => {
+  if (g.hidden) return;
+  const o = document.createElement('option'); o.value = id; o.textContent = g.label; $('#game').appendChild(o);
+});
+$('#game').value = q.get('game') || 'crossword';
+$('#view').value = q.get('view') || 'puzzle';
+$('#pid').value = q.get('p') || '';
+
+function load() {
+  const g = window.GAMES[$('#game').value], id = $('#game').value, p = $('#pid').value.trim();
+  const page = $('#view').value === 'archive' && g.archive ? g.archive : g.player;
+  $('#frame').src = '../' + page + '?game=' + encodeURIComponent(id) + (p ? '&p=' + encodeURIComponent(p) : '') +
+                    '&canonical=' + encodeURIComponent(location.href);
+}
+
+addEventListener('message', e => {
+  const d = e.data;
+  if (!d || d.source !== 'lat-games') return;
+  window.messages.push(d);
+  const row = document.createElement('div');
+  const t = new Date(d.ts).toLocaleTimeString();
+  row.innerHTML = '<span class="ev"></span> <span style="color:#7b8794"></span>\n<span></span>';
+  row.children[0].textContent = d.event;
+  if (d.event === 'navigate') row.children[0].className = 'ev nav';
+  row.children[1].textContent = t + '  from ' + e.origin;
+  row.children[2].textContent = JSON.stringify(d);
+  $('#log').appendChild(row); $('#log').scrollTop = 1e9;
+});
+
+$('#go').onclick = load;
+$('#clear').onclick = () => { window.messages = []; $('#log').innerHTML = ''; };
+$('#copy').onclick = () => navigator.clipboard.writeText(JSON.stringify(window.messages, null, 2));
+load();
+</script>
+</body>
+</html>

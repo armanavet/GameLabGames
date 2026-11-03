@@ -46,6 +46,12 @@
   .log .bad{color:#ff9b93}
   .log .good{color:#8fe3b0}
   .note{background:var(--note-bg);border-radius:10px;padding:11px 14px;font-size:13px;margin-top:12px}
+  input[type=number]{width:100%;border:1px solid #d3d8e0;border-radius:8px;padding:9px 11px;font-size:14px;
+    font-family:var(--font);background:#fff}
+  .photo{display:flex;gap:16px;align-items:flex-start;margin-top:14px;flex-wrap:wrap}
+  .photo img{width:220px;max-width:100%;border-radius:8px;display:block;background:#eee}
+  .photo .fields{flex:1;min-width:240px;display:grid;gap:10px}
+  .photo .meta{font-size:12px;color:#8a8a8a;margin-top:6px}
 </style>
 </head>
 <body>
@@ -87,9 +93,29 @@
         <button class="mini-btn" type="button" id="nowBtn">Now</button>
       </div>
     </div>
-    <div class="drop" id="drop">Drop puzzle <b>.json</b> files here, or click to choose.
+    <div class="drop" id="drop"><span id="dropText">Drop puzzle <b>.json</b> files here, or click to choose.</span>
       <input type="file" id="file" accept=".json,application/json" multiple hidden/></div>
-    <div class="note">Each file is validated before it is stored — grid size, numbering and every answer
+    <!-- Jigsaw only: a photo is the puzzle, so it comes with a few words about it -->
+    <div class="photo" id="photo" hidden>
+      <div><img id="photoImg" alt=""/><div class="meta" id="photoMeta"></div></div>
+      <div class="fields">
+        <div><label class="f" for="pTitle">Title</label><input type="text" id="pTitle"/></div>
+        <div><label class="f" for="pCredit">Credit</label>
+          <input type="text" id="pCredit" placeholder="Photo: Name, Los Angeles Times"/></div>
+        <div><label class="f" for="pSource">Source <span style="text-transform:none;font-weight:500">(optional)</span></label>
+          <input type="text" id="pSource" placeholder="where the photo and its rights came from"/></div>
+        <div class="row">
+          <div style="min-width:120px"><label class="f" for="pPieces">Pieces</label>
+            <input type="number" id="pPieces" min="6" max="200" step="1" value="30"/></div>
+          <div><label class="f" for="pId">Puzzle id</label><input type="text" id="pId"/></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn pri" type="button" id="pSend">Upload puzzle</button>
+          <button class="mini-btn" type="button" id="pCancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div class="note" id="dropNote">Each file is validated before it is stored — grid size, numbering and every answer
       against the grid. A bad puzzle is rejected with the reason rather than published.</div>
     <div class="log" id="log" hidden></div>
   </div>
@@ -126,8 +152,29 @@ const state = { api:'', token:'', game:'crossword' };
     o.value = id; o.textContent = g.label; sel.appendChild(o);
   });
   sel.value = 'crossword';
-  sel.addEventListener('change', () => { state.game = sel.value; list(); });
+  sel.addEventListener('change', () => { state.game = sel.value; dropFor(); list(); });
 })();
+
+/* Jigsaw's puzzle is a photo, so for Jigsaw the drop zone takes photos too:
+   the page scales one down, the Worker stores it, and the puzzle JSON is
+   written here around the address it is stored at. JSON still works, for a
+   puzzle whose photo is hosted elsewhere. */
+const PHOTO_GAME = 'jigsaw';
+const NOTE_JSON = $('#dropNote').innerHTML;
+function dropFor(){
+  const photos = state.game === PHOTO_GAME;
+  $('#file').accept = photos ? '.json,application/json,.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
+                             : '.json,application/json';
+  $('#dropText').innerHTML = photos
+    ? 'Drop a <b>photo</b> (.jpg, .png, .webp) or puzzle <b>.json</b> here, or click to choose.'
+    : 'Drop puzzle <b>.json</b> files here, or click to choose.';
+  $('#dropNote').innerHTML = photos
+    ? 'A photo is scaled to at most 1600px across and saved as a JPEG before it is sent. ' +
+      'It stays private until its puzzle is published. Every photo needs a credit: only upload ' +
+      'photos the paper has the right to publish.'
+    : NOTE_JSON;
+  if (!photos) closePhoto();
+}
 
 function log(msg, cls){
   const el = $('#log'); el.hidden = false;
@@ -191,9 +238,18 @@ drop.ondragleave = () => drop.classList.remove('over');
 drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); send([...e.dataTransfer.files]); };
 file.onchange = () => { send([...file.files]); file.value = ''; };
 
+const isPhoto = f => /\.(jpe?g|png|webp)$/i.test(f.name) || /^image\/(jpeg|png|webp)$/.test(f.type);
+
 async function send(files){
   const whenLocal = $('#when').value;
   const publishAt = whenLocal ? new Date(whenLocal).toISOString() : new Date().toISOString();
+  /* a photo needs its form filled in, so photos are taken one at a time */
+  const photo = state.game === PHOTO_GAME && files.find(isPhoto);
+  if (photo) {
+    if (files.length > 1) log('photos go up one at a time — showing ' + photo.name, 'bad');
+    openPhoto(photo);
+    return;
+  }
   for (const f of files) {
     if (!/\.json$/i.test(f.name)) { log(`skipped ${f.name} — not .json`, 'bad'); continue; }
     let puzzle;
@@ -213,6 +269,95 @@ async function send(files){
   }
   list();
 }
+
+/* ---------- a Jigsaw photo ---------- */
+const MAX_SIDE = 1600, QUALITY = 0.86;
+const photo = { blob:null, url:'' };
+
+/* A phone photo can be 4000px and 8 MB; the player never shows it larger
+   than a screen, so it is redrawn at most 1600px on its long side. Drawing
+   it also bakes in the camera's rotation and drops its location data. */
+async function shrink(file){
+  const bmp = await createImageBitmap(file, { imageOrientation:'from-image' });
+  const k = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);   // a PNG's transparency, flattened
+  g.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close && bmp.close();
+  const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', QUALITY));
+  return { blob, w:c.width, h:c.height };
+}
+
+function slugify(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+
+async function openPhoto(f){
+  let out;
+  try { out = await shrink(f); }
+  catch (e) { log(`${f.name}: could not read this photo`, 'bad'); return; }
+  closePhoto();
+  photo.blob = out.blob; photo.url = URL.createObjectURL(out.blob);
+  $('#photoImg').src = photo.url;
+  $('#photoMeta').textContent = `${out.w} × ${out.h} · ${Math.round(out.blob.size / 1024)} KB`;
+  /* a name like "griffith_observatory-2.jpg" becomes "Griffith observatory 2" */
+  const name = f.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').trim();
+  $('#pTitle').value = name.charAt(0).toUpperCase() + name.slice(1);
+  $('#pCredit').value = localStorage.getItem('lat:games:lastCredit') || '';
+  $('#pSource').value = '';
+  $('#pPieces').value = 30;
+  /* one Jigsaw a day: the id is the publish date, as in the shipped puzzles */
+  const d = $('#when').value ? new Date($('#when').value) : new Date();
+  $('#pId').value = 'jigsaw-' + toLocalInput(d).slice(0,10);
+  $('#photo').hidden = false;
+  $('#pTitle').focus();
+}
+
+function closePhoto(){
+  if (photo.url) URL.revokeObjectURL(photo.url);
+  photo.blob = null; photo.url = '';
+  $('#photo').hidden = true;
+}
+$('#pCancel').onclick = closePhoto;
+
+$('#pSend').onclick = async () => {
+  const title = $('#pTitle').value.trim(), credit = $('#pCredit').value.trim();
+  const source = $('#pSource').value.trim(), pieces = Number($('#pPieces').value);
+  const id = slugify($('#pId').value);
+  if (!title) { log('the photo needs a title', 'bad'); $('#pTitle').focus(); return; }
+  if (!credit) { log('the photo needs a credit', 'bad'); $('#pCredit').focus(); return; }
+  if (!Number.isInteger(pieces) || pieces < 6 || pieces > 200) { log('pieces must be a whole number from 6 to 200', 'bad'); return; }
+  if (!id) { log('the puzzle needs an id', 'bad'); return; }
+  if (!state.api) { log('set the API base first', 'bad'); return; }
+  const whenLocal = $('#when').value;
+  const publishAt = whenLocal ? new Date(whenLocal).toISOString() : new Date().toISOString();
+  const btn = $('#pSend'); btn.disabled = true;
+  try {
+    const r = await fetch(state.api + '/api/admin/image/' + encodeURIComponent(id) + '?game=' + PHOTO_GAME, {
+      method:'PUT', body: photo.blob,
+      headers: Object.assign({ 'content-type':'image/jpeg' }, state.token ? { 'x-admin-token': state.token } : {})
+    });
+    const up = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(up.error || r.status);
+    log(`photo stored — ${Math.round(up.bytes / 1024)} KB`, 'good');
+    /* the version on the end makes a replaced photo a new address, so
+       nobody is shown yesterday's copy from their cache */
+    const dated = id.match(/\d{4}-\d{2}-\d{2}/);
+    const puzzle = { title, date: dated ? dated[0] : toLocalInput(publishAt).slice(0,10),
+                     image: up.url + '&v=' + Date.now().toString(36), credit,
+                     pieces, author:'', editor:'' };
+    if (source) puzzle.source = source;
+    const res = await api('/api/admin/upload', {
+      method:'POST', body: JSON.stringify({ game: PHOTO_GAME, id, publishAt, puzzle })
+    });
+    localStorage.setItem('lat:games:lastCredit', credit);
+    log(`${res.replaced ? 'replaced' : 'uploaded'} ${res.entry.id} — ${res.entry.live ? 'live now' : 'scheduled for ' + publishAt}`, 'good');
+    closePhoto(); list();
+  } catch (e) {
+    log(`${id}: ${e.message}`, 'bad');
+    (e.body && e.body.problems || []).slice(0,5).forEach(p => log('   ' + p, 'bad'));
+  } finally { btn.disabled = false; }
+};
 
 /* ---------- archive table ---------- */
 $('#refresh').onclick = () => list();

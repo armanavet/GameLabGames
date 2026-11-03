@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<!-- zoom deliberately enabled: blocking it is a WCAG failure and iOS ignores it anyway -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Jigsaw</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core.css">
+<style>
+  /* Jigsaw -- played the way the LA Times jigsaw already plays, in our
+     chrome. The photo is shown whole on a tinted table; Start game breaks it
+     up and throws the pieces across the whole table; pieces that belong
+     together click together when brought close, anywhere; and when the last
+     two join, the finished picture glides back to the middle. */
+  :root{--table:#c8d2de}
+  #app{max-width:1200px}
+  .jmain{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+  .table{position:relative;flex:1 1 auto;min-height:280px;overflow:hidden;background:var(--table);
+         touch-action:none;user-select:none;-webkit-user-select:none;transition:background .25s}
+  .world{position:absolute;left:0;top:0;transform-origin:0 0}
+  /* the whole photo: shown before the start and once it is rebuilt */
+  .photo{position:absolute;left:0;top:0;display:block;pointer-events:none;transition:opacity .5s}
+  .photo.gone{opacity:0}
+  .pc{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+  .pc.fly{transition:transform .9s cubic-bezier(.2,.75,.25,1)}
+  .pc.snap{transition:transform .14s ease-out}
+  .pc.home{transition:transform .6s cubic-bezier(.3,.7,.3,1)}
+  .pc.hidden{opacity:0;pointer-events:none}
+  .pc{transition:opacity .2s}
+  /* the reference picture: three-quarter size in the bottom corner, over the
+     pieces; tapping it puts it away */
+  .ref{position:absolute;left:10px;bottom:10px;z-index:200000;display:none;cursor:pointer;
+       box-shadow:0 3px 14px rgba(0,0,0,.3);border-radius:2px}
+  .ref.show{display:block}
+
+  /* ---------- the bar under the table ---------- */
+  .bottom{flex:none;background:#fff;border-top:1px solid #e6e6e6}
+  .startbar{display:flex;justify-content:center;padding:12px}
+  .startbar .btn.pri{width:auto;padding:5px 30px}
+  .tools{display:flex;justify-content:space-between;padding:6px 18px}
+  .tool{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:86px;padding:6px 8px;
+        border:0;background:none;cursor:pointer;font-family:var(--font);font-size:12.5px;font-weight:600;
+        color:var(--ink);border-radius:8px}
+  .tool svg{width:22px;height:22px}
+  .tool:hover{background:#f4f4f4}
+  .tool[aria-pressed="true"]{color:#2f78c4}
+  .tool:disabled{opacity:.4;cursor:default;background:none}
+  .bottom [hidden]{display:none}
+  .caption{margin:0;padding:6px 12px 10px;text-align:center;font-size:12.5px;color:#5f5f5f;background:#fff;flex:none}
+
+  /* settings: the table colour is any colour, as in the original */
+  .colorrow{display:flex;align-items:center;gap:10px;margin-top:8px}
+  .colorrow input{width:54px;height:30px;padding:0;border:1px solid #cfcfcf;border-radius:6px;background:#fff;cursor:pointer}
+  .colorrow button{font-family:var(--font);font-size:12.5px;border:0;background:none;color:#2f78c4;cursor:pointer;padding:4px}
+
+  @media(max-width:720px){
+    .tools{padding:4px 6px}
+    .tool{min-width:0;flex:1}
+    .caption{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="jmain">
+    <div class="table" id="table" aria-label="Jigsaw table">
+      <div class="world" id="world"><img class="photo" id="photo" alt=""/></div>
+      <img class="ref" id="ref" alt="The finished picture, for reference" title="Tap to hide"/>
+    </div>
+    <div class="bottom">
+      <div class="startbar" id="startbar"><button class="btn pri" type="button" id="startBtn">Start game</button></div>
+      <div class="tools" id="tools" hidden>
+        <button class="tool" type="button" id="refBtn" aria-pressed="false" title="Show the finished picture">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="9" r="1.6"/></svg>
+          <span>Image</span></button>
+        <button class="tool" type="button" id="edgesBtn" aria-pressed="false" title="Show only the edge pieces">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" id="edgesIco">
+            <rect x="4" y="4" width="16" height="16" rx="1.5"/></svg>
+          <span id="edgesLbl">Edges only</span></button>
+        <button class="tool" type="button" id="hintBtn" title="Show two pieces that fit together">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+            <path d="M9 18h6M10 21h4"/><path d="M12 2.6a6.6 6.6 0 0 0-3.9 11.9c.6.5.9 1.1.9 1.8h6c0-.7.3-1.3.9-1.8A6.6 6.6 0 0 0 12 2.6Z"/></svg>
+          <span>Hint</span></button>
+      </div>
+      <p class="caption" id="caption"></p>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="overlay" id="settingsOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-set">
+    <div class="mhead"><h2 id="dlgH-set">Settings</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <div class="sgroup">
+        <div class="srow"><div class="lab"><b>Show timer</b><span>Shows the timer while playing this puzzle</span></div>
+          <label class="sw"><input type="checkbox" id="optTimerShown" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Sound</b><span>Plays a click when pieces join</span></div>
+          <label class="sw"><input type="checkbox" id="optSound" checked/><i></i></label></div>
+        <div class="srow"><div class="lab"><b>Background color</b><span>Changes the table colour while playing this puzzle</span>
+          <div class="colorrow"><input type="color" id="optBg" aria-label="Table colour"/>
+            <button type="button" id="bgReset">Reset</button></div></div></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="applySettings">Apply</button></div>
+  </div></div>
+
+  <!-- How to play -->
+  <div class="overlay" id="howtoOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-howto">
+    <div class="mhead"><h2 id="dlgH-howto">How to play</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>Press Start game to break the picture into pieces, then put it back together. Drag a piece next to one it belongs beside and the two click together; from then on they move as one. Keep joining until the whole picture is one piece.</p>
+      <p><b>Image</b></p>
+      <p>Shows the finished picture in the corner of the table. Tap the picture, or the button again, to put it away.</p>
+      <p><b>Edges only</b></p>
+      <p>Hides the pieces from the middle of the picture so you can build the border first. Press All pieces to bring them back.</p>
+      <p><b>Hint</b></p>
+      <p>Wiggles two pieces that fit together.</p>
+      <p><b>Save</b></p>
+      <p>Your progress is saved automatically in this browser, and you can choose Save from the menu at any time.</p>
+      <p><b>Start again</b></p>
+      <p>Puts the picture back together and sets the clock back to zero, ready to start over.</p>
+    </div>
+  </div></div>
+
+  <!-- Support -->
+  <div class="overlay" id="supportOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-support">
+    <div class="mhead"><h2 id="dlgH-support">Support</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody">
+      <p>This player is powered by GameLab</p>
+      <div class="soft">
+        <p>Please include the following in your message:</p>
+        <p><b>Ticket number: <span id="ticketNo">&mdash;</span></b></p>
+        <p>Device type</p><p>Device orientation</p><p>Screenshot (if possible)</p>
+      </div>
+      <hr/>
+      <p id="copyrightLine">&copy; 2026 Tribune Content Agency, LLC</p>
+    </div>
+  </div></div>
+
+  <!-- Congratulations -->
+  <div class="overlay" id="winOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgH-win">
+    <div class="mhead"><h2 id="dlgH-win">Congratulations!</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center">
+      <div class="winicon"><svg width="34" height="34" aria-hidden="true"><use href="icons.svg#i-confetti"/></svg></div>
+      <p>You completed the puzzle.</p>
+      <div class="winstats">
+        <div><span class="wl">Pieces</span><b id="winPieces">0</b></div>
+        <div><span class="wl">Time</span><b id="winTime">&mdash;</b></div>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn pri" type="button" id="winShare">Share</button></div>
+    <p class="winnext">Discover Your New Challenge</p>
+    <div class="promo" id="promo"></div>
+  </div></div>
+
+  <!-- shared confirm/notice -->
+  <div class="overlay" id="dialogOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="mhead"><h2 id="dlgTitle">&mdash;</h2>
+      <button class="mclose" type="button" data-close aria-label="Close"><svg width="24" height="24" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div>
+    <div class="mbody center"><p id="dlgBody">&mdash;</p></div>
+    <div class="mbtns">
+      <button class="btn sec" type="button" id="dlgClose">Close</button>
+      <button class="btn pri" type="button" id="dlgOk">Ok</button>
+    </div>
+  </div></div>
+
+  <div id="menuScrim"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="srLive" class="sr-only" role="status" aria-live="polite"></div>
+</div>
+
+<style>
+  .winstats{display:flex;justify-content:center;gap:0;margin:16px 0 4px}
+  .winstats > div{display:flex;flex-direction:column;gap:2px;padding:0 26px}
+  .winstats > div + div{border-left:1px solid var(--panel-line)}
+  .winstats .wl{font-size:14px;font-weight:400;color:var(--ink)}
+  .winstats b{font-size:26px;font-weight:700;color:var(--ink)}
+  .winicon{display:flex;justify-content:center;margin:2px 0 -2px}
+  .winnext{margin:12px 0 10px;text-align:center;font-size:14px;font-weight:700;color:var(--ink)}
+  .promo{width:min(196px,100%);margin:0 auto 4px;border-radius:12px;overflow:hidden;
+         background:#fff;border:1px solid #e8e8e8}
+  .promo .pthumb{height:86px;display:flex;align-items:center;justify-content:center}
+  .promo .pthumb svg{width:44px;height:44px}
+  .promo .pbody{padding:10px 12px 12px;text-align:left}
+  .promo h3{margin:0 0 3px;font-size:15px;font-weight:700;color:var(--ink)}
+  .promo p{margin:0 0 9px;font-size:12px;font-weight:400;color:#6b6b6b;line-height:1.35}
+  .promo .pgo{display:flex;align-items:center;justify-content:center;height:32px;width:100%;
+        border-radius:20px;border:1.5px solid var(--ink);background:#fff;cursor:pointer;
+        font-family:var(--font);font-size:13px;font-weight:700;color:var(--ink)}
+</style>
+
+<!-- games.js first: core.js reads window.GAMES to resolve the roster entry -->
+<script src="games.js"></script>
+<script src="core.js"></script>
+<script src="jigsaw-engine.js"></script>
+<script>
+(async function(){
+  'use strict';
+  const $=XW.$, J=window.JIGSAW;
+  XW.gameId='jigsaw';
+  const G=(window.GAMES&&window.GAMES.jigsaw)||{};
+
+  XW.mountToolbar($('#app'),{
+    left:['timer'],
+    right:[{id:'piecesPill',kind:'pill',text:'',label:'Number of pieces'},'settings','menu'],
+    menuItems:[['more','More puzzles'],['howto','How to play'],['save','Save'],
+               ['restart','Start again'],['support','Support']]
+  });
+  $('#app').insertBefore($('.topbar'),$('.jmain'));
+
+  const fail=msg=>{ $('.jmain').innerHTML='<p style="margin:40px auto;max-width:420px;text-align:center;color:#5f5f5f"></p>';
+                    $('.jmain p').textContent=msg; };
+
+  /* ---------- which puzzle ---------- */
+  let res=null, P=null;
+  try{
+    res=await XW.loadPuzzle();
+    const problems=J.validate(res.data);
+    if(problems.length) console.warn('[jigsaw] invalid payload:',problems); else P=res.data;
+  }catch(e){ console.warn('[jigsaw]',e&&e.message); }
+  if(!P) return fail('No puzzle is available right now. Please try again later.');
+  const puzId=res.id;
+  XW.puzzleId=puzId;
+  const iso=P.date||(res.meta&&res.meta.date)||'';
+  document.title='Jigsaw'+(iso?' — '+iso:'');
+  const DOW=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const when=(()=>{ const d=new Date(iso+'T00:00:00');
+    return isNaN(d)?'':(DOW[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear()); })();
+  $('#caption').textContent=['L. A. Times '+(G.label||'Jigsaw'),P.title,when,P.credit].filter(Boolean).join(' · ');
+
+  /* the photo itself, needed before anything can be cut */
+  const IMG=new Image();
+  if(/^https?:/i.test(P.image)) IMG.crossOrigin='anonymous';
+  const loaded=new Promise((ok,no)=>{ IMG.onload=ok; IMG.onerror=no; });
+  IMG.src=P.image;
+  try{ await loaded; }catch(e){ return fail('The photo for this puzzle could not be loaded.'); }
+  $('#photo').src=P.image; $('#photo').alt=P.title;
+  $('#ref').src=P.image;
+  /* the archive's row mark for this puzzle: a small copy of the photo, kept
+     now while the photo is loaded anyway (archive.html reads the same key) */
+  try{
+    const key='lat:games:thumb:'+P.image;
+    if(!localStorage.getItem(key)){
+      const c=document.createElement('canvas'); c.width=c.height=70;
+      const s=Math.min(IMG.naturalWidth,IMG.naturalHeight);
+      c.getContext('2d').drawImage(IMG,(IMG.naturalWidth-s)/2,(IMG.naturalHeight-s)/2,s,s,0,0,70,70);
+      localStorage.setItem(key,c.toDataURL('image/jpeg',0.72));
+    }
+  }catch(_){}
+
+  /* ---------- the table colour ----------
+     The payload may name one; otherwise it is a tint opposite the photo's own
+     colour, worked out from the photo, as the original's tables are. */
+  const defaultBg=(()=>{
+    if(P.background) return P.background;
+    try{
+      const c=document.createElement('canvas'); c.width=c.height=16;
+      const x=c.getContext('2d'); x.drawImage(IMG,0,0,16,16);
+      const d=x.getImageData(0,0,16,16).data; let r=0,g=0,b=0;
+      for(let i=0;i<d.length;i+=4){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; }
+      const n=d.length/4; return J.tableColour(r/n,g/n,b/n);
+    }catch(e){ return '#c8d2de'; }
+  })();
+  let tableBg=defaultBg;
+  const paintBg=()=>document.documentElement.style.setProperty('--table',tableBg);
+
+  /* ---------- geometry ----------
+     Board units: the finished picture is W wide, and sits at (0,0) when it is
+     whole. One transform fits it to the table with a margin round it -- a
+     slim one on a phone, so the pieces are as big as the screen allows -- and
+     the rest of the table, in board units, is where pieces can be. */
+  const W=1000, H=W*IMG.naturalHeight/IMG.naturalWidth;
+  const table=$('#table'), world=$('#world'), photo=$('#photo'), ref=$('#ref');
+  photo.style.width=W+'px'; photo.style.height=H+'px';
+  const target=P.pieces||J.DEFAULT_PIECES;
+  const gr=J.grid(target,W/H);
+  const CUT=J.cut(gr.cols,gr.rows,W,H,puzId);
+  const N=CUT.pieces.length;
+  XW.setChip('piecesPill',N+' Pieces');
+  $('#winPieces').textContent=String(N);
+
+  let scale=1, R={x:0,y:0,w:W,h:H};
+  const dpr=()=>Math.min(window.devicePixelRatio||1,2.5);
+  const PATHS=[], EL=[];
+  CUT.pieces.forEach(p=>{
+    const path=new Path2D();
+    p.outline.forEach(([x,y],i)=>{ if(i) path.lineTo(x,y); else path.moveTo(x,y); });
+    path.closePath();
+    PATHS[p.id]=path;
+    const cv=document.createElement('canvas');
+    cv.className='pc hidden';
+    cv.style.width=(CUT.cw+2*CUT.margin)+'px';
+    cv.style.height=(CUT.ch+2*CUT.margin)+'px';
+    world.appendChild(cv); EL[p.id]=cv;
+  });
+  const hitCtx=document.createElement('canvas').getContext('2d');
+
+  /* groups: a position and the pieces in it. A piece sits at its group's
+     position plus where it belongs in the picture, so a group at (0,0) is in
+     the picture's place, and two groups fit when they sit at the same point. */
+  let groups=new Map(), groupOf=[], gidNext=1, zTop=10;
+  let started=false, won=false, edgesOnly=false;
+  function newGroup(x,y,ids){
+    const g={id:gidNext++,x:x,y:y,ids:new Set(ids),z:++zTop,a:0};
+    groups.set(g.id,g); ids.forEach(i=>{ groupOf[i]=g.id; });
+    return g;
+  }
+
+  function fit(){
+    const r=table.getBoundingClientRect();
+    if(!r.width||!r.height) return;
+    const m=r.width<600?0.04:0.1;
+    scale=Math.min(r.width*(1-2*m)/W,r.height*(1-2*m)/H);
+    R={w:r.width/scale,h:r.height/scale};
+    R.x=-(R.w-W)/2; R.y=-(R.h-H)/2;
+    world.style.transform='translate('+(-R.x*scale).toFixed(1)+'px,'+(-R.y*scale).toFixed(1)+'px) scale('+scale+')';
+    /* the reference copy is three-quarters of the picture, but never more of
+       the table than it can spare */
+    const rw=Math.min(W*scale*0.75,r.width*0.62,(r.height*0.6)*W/H);
+    ref.style.width=rw.toFixed(0)+'px';
+    CUT.pieces.forEach(draw);
+    groups.forEach(g=>{ keepOn(g); place(g); });
+  }
+  let fitTimer=null;
+  addEventListener('resize',()=>{ clearTimeout(fitTimer); fitTimer=setTimeout(fit,100); });
+
+  /* one piece: the photo through its outline, with the original's thin dark
+     line round it */
+  function draw(p){
+    const cv=EL[p.id], k=scale*dpr(), m=CUT.margin;
+    const w=CUT.cw+2*m, h=CUT.ch+2*m;
+    cv.width=Math.max(1,Math.ceil(w*k)); cv.height=Math.max(1,Math.ceil(h*k));
+    const ctx=cv.getContext('2d');
+    ctx.setTransform(k,0,0,k,0,0);
+    const path=PATHS[p.id];
+    ctx.save(); ctx.clip(path);
+    ctx.drawImage(IMG,-(p.c*CUT.cw-m),-(p.r*CUT.ch-m),W,H);
+    ctx.restore();
+    ctx.lineWidth=1.5/scale; ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.lineJoin='round';
+    ctx.stroke(path);
+  }
+
+  /* where a group's pieces are on screen; `a` is a wiggle, in degrees,
+     turned about the group's own middle */
+  function centreOf(g){
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    g.ids.forEach(i=>{ const p=CUT.pieces[i];
+      x0=Math.min(x0,p.c*CUT.cw); y0=Math.min(y0,p.r*CUT.ch);
+      x1=Math.max(x1,(p.c+1)*CUT.cw); y1=Math.max(y1,(p.r+1)*CUT.ch); });
+    return [g.x+(x0+x1)/2,g.y+(y0+y1)/2];
+  }
+  function place(g){
+    const [cx,cy]=g.a?centreOf(g):[0,0];
+    g.ids.forEach(i=>{
+      const p=CUT.pieces[i], el=EL[i];
+      const px=g.x+p.c*CUT.cw-CUT.margin, py=g.y+p.r*CUT.ch-CUT.margin;
+      el.style.transform=g.a
+        ?'translate('+cx.toFixed(2)+'px,'+cy.toFixed(2)+'px) rotate('+g.a.toFixed(2)+'deg) translate('+(px-cx).toFixed(2)+'px,'+(py-cy).toFixed(2)+'px)'
+        :'translate3d('+px.toFixed(2)+'px,'+py.toFixed(2)+'px,0)';
+      el.style.zIndex=g.z;
+    });
+  }
+  /* a group never leaves the table: its middle stays on it */
+  function keepOn(g){
+    const [cx,cy]=centreOf(g);
+    const nx=Math.max(R.x+CUT.cw*0.4,Math.min(R.x+R.w-CUT.cw*0.4,cx));
+    const ny=Math.max(R.y+CUT.ch*0.4,Math.min(R.y+R.h-CUT.ch*0.4,cy));
+    g.x+=nx-cx; g.y+=ny-cy;
+  }
+  const hasEdge=g=>[...g.ids].some(i=>CUT.pieces[i].border);
+  const shown=g=>!edgesOnly||hasEdge(g);
+  function paintVisibility(){
+    groups.forEach(g=>{ const v=started&&!won&&shown(g); g.ids.forEach(i=>EL[i].classList.toggle('hidden',!v)); });
+  }
+
+  /* ---------- picking a piece up ---------- */
+  const toBoard=(cx,cy)=>{ const r=table.getBoundingClientRect();
+    return [(cx-r.left)/scale+R.x,(cy-r.top)/scale+R.y]; };
+  /* the topmost visible group under the point, tested against each piece's
+     real outline so the empty corners round a knob never steal the click */
+  function hit(bx,by){
+    const order=[...groups.values()].filter(shown).sort((a,b)=>b.z-a.z);
+    for(const g of order) for(const i of g.ids){
+      const p=CUT.pieces[i];
+      const lx=bx-(g.x+p.c*CUT.cw-CUT.margin), ly=by-(g.y+p.r*CUT.ch-CUT.margin);
+      if(lx<0||ly<0||lx>CUT.cw+2*CUT.margin||ly>CUT.ch+2*CUT.margin) continue;
+      if(hitCtx.isPointInPath(PATHS[i],lx,ly)) return g;
+    }
+    return null;
+  }
+
+  let drag=null, raf=0;
+  table.addEventListener('pointerdown',e=>{
+    if(!started||won||XW.anyOverlayOpen()) return;
+    if(e.target===ref){ showRef(false); return; }
+    const [bx,by]=toBoard(e.clientX,e.clientY);
+    const g=hit(bx,by); if(!g) return;
+    e.preventDefault();
+    table.setPointerCapture(e.pointerId);
+    g.z=++zTop; g.a=0;
+    g.ids.forEach(i=>EL[i].classList.remove('fly','snap','home'));
+    drag={g:g,id:e.pointerId,bx:bx,by:by,gx:g.x,gy:g.y,moved:false};
+    place(g);
+  });
+  table.addEventListener('pointermove',e=>{
+    if(!drag||e.pointerId!==drag.id) return;
+    /* the finger can leave the table; the piece stays on it */
+    const r=table.getBoundingClientRect(), inset=4;
+    const cx=Math.max(r.left+inset,Math.min(r.right-inset,e.clientX));
+    const cy=Math.max(r.top+inset,Math.min(r.bottom-inset,e.clientY));
+    const [bx,by]=toBoard(cx,cy);
+    drag.g.x=drag.gx+(bx-drag.bx); drag.g.y=drag.gy+(by-drag.by);
+    drag.moved=true;
+    if(!raf) raf=requestAnimationFrame(()=>{ raf=0; if(drag) place(drag.g); });
+  });
+  const drop=e=>{
+    if(!drag||e.pointerId!==drag.id) return;
+    const g=drag.g, moved=drag.moved; drag=null;
+    if(moved) settle(g);
+  };
+  table.addEventListener('pointerup',drop);
+  table.addEventListener('pointercancel',drop);
+
+  /* ---------- clicking together ----------
+     Two groups fit when they hold neighbouring pieces and sit at nearly the
+     same position -- within a small allowance, a little larger on a phone
+     where a fingertip is less exact. The one being dropped slides the last
+     bit into place, they become one, and it clicks. */
+  const tol=()=>Math.max(0.16*Math.min(CUT.cw,CUT.ch),11/scale);
+  function partnerOf(g){
+    const t=tol();
+    for(const i of g.ids){
+      const p=CUT.pieces[i];
+      for(const [dr,dc] of [[0,1],[1,0],[0,-1],[-1,0]]){
+        const r=p.r+dr, c=p.c+dc;
+        if(r<0||c<0||r>=CUT.rows||c>=CUT.cols) continue;
+        const h=groups.get(groupOf[r*CUT.cols+c]);
+        if(!h||h===g||!shown(h)) continue;
+        if(Math.abs(g.x-h.x)<=t&&Math.abs(g.y-h.y)<=t) return h;
+      }
+    }
+    return null;
+  }
+  function settle(g){
+    let h=partnerOf(g), joined=false;
+    while(h){
+      /* the moving group slides onto the one already lying still */
+      g.ids.forEach(i=>{ EL[i].classList.add('snap'); h.ids.add(i); groupOf[i]=h.id; });
+      groups.delete(g.id);
+      h.z=Math.max(h.z,g.z);
+      g=h; joined=true;
+      h=partnerOf(g);
+    }
+    keepOn(g); place(g);
+    if(joined){
+      click();
+      setTimeout(()=>EL.forEach(el=>el.classList.remove('snap')),160);
+      XW.emit('assist_used',{action:'piece_connected'});
+    }
+    save();
+    if(groups.size===1) finish();
+  }
+
+  /* the finished picture glides home and the seams fade away */
+  function finish(){
+    if(won) return;
+    won=true; XW.timer.stop();
+    const g=[...groups.values()][0];
+    g.ids.forEach(i=>EL[i].classList.add('home'));
+    g.x=0; g.y=0; g.a=0; place(g);
+    paintTools();
+    setTimeout(()=>{ photo.classList.remove('gone'); },650);
+    setTimeout(()=>{ paintVisibility(); g.ids.forEach(i=>EL[i].classList.remove('home')); },1200);
+    $('#winTime').textContent=XW.fmtTime(XW.timer.secs);
+    setTimeout(()=>XW.openOverlay('winOverlay'),1300);
+    XW.emit('game_complete',{puzzleId:puzId,seconds:XW.timer.secs,pieces:N});
+    XW.announce('Puzzle complete in '+XW.fmtTime(XW.timer.secs)+'.');
+    save();
+  }
+
+  /* ---------- sound ----------
+     A short wooden click when pieces join, made on the spot rather than
+     loaded, so there is no sound file to ship. Off in Settings, it is silent. */
+  let soundOn=true, actx=null;
+  function click(){
+    if(!soundOn) return;
+    try{
+      actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+      const t=actx.currentTime, o=actx.createOscillator(), gn=actx.createGain();
+      o.type='triangle'; o.frequency.setValueAtTime(1100,t); o.frequency.exponentialRampToValueAtTime(380,t+0.05);
+      gn.gain.setValueAtTime(0.0001,t); gn.gain.exponentialRampToValueAtTime(0.22,t+0.004);
+      gn.gain.exponentialRampToValueAtTime(0.0001,t+0.09);
+      o.connect(gn).connect(actx.destination); o.start(t); o.stop(t+0.1);
+    }catch(e){}
+  }
+
+  /* ---------- the tools ---------- */
+  function showRef(on){
+    ref.classList.toggle('show',on);
+    $('#refBtn').setAttribute('aria-pressed',String(on));
+  }
+  $('#refBtn').onclick=()=>showRef(!ref.classList.contains('show'));
+  ref.addEventListener('click',()=>showRef(false));
+
+  const EDGE_ICO='<rect x="4" y="4" width="16" height="16" rx="1.5"/>';
+  const ALL_ICO='<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/>';
+  function paintEdges(){
+    $('#edgesLbl').textContent=edgesOnly?'All pieces':'Edges only';
+    $('#edgesIco').innerHTML=edgesOnly?ALL_ICO:EDGE_ICO;
+    $('#edgesBtn').setAttribute('aria-pressed',String(edgesOnly));
+    $('#edgesBtn').title=edgesOnly?'Show all the pieces':'Show only the edge pieces';
+  }
+  $('#edgesBtn').onclick=()=>{ edgesOnly=!edgesOnly; paintEdges(); paintVisibility(); };
+
+  /* A hint picks two pieces that belong side by side but are not joined yet
+     -- both edge pieces while only the edges are showing -- and wiggles
+     them, without moving either. */
+  $('#hintBtn').onclick=()=>{
+    if(!started||won) return;
+    for(const p of CUT.pieces){
+      for(const [dr,dc] of [[0,1],[1,0]]){
+        const r=p.r+dr, c=p.c+dc;
+        if(r>=CUT.rows||c>=CUT.cols) continue;
+        const a=groups.get(groupOf[p.id]), b=groups.get(groupOf[r*CUT.cols+c]);
+        if(a===b||!shown(a)||!shown(b)) continue;
+        a.z=++zTop; b.z=++zTop;
+        wiggle(a); wiggle(b);
+        XW.emit('assist_used',{action:'hint'});
+        return;
+      }
+    }
+  };
+  function wiggle(g){
+    const t0=performance.now(), T=950;
+    const step=now=>{
+      const t=Math.min(1,(now-t0)/T);
+      g.a=t<1?18*Math.sin(t*Math.PI*4)*(1-t):0;
+      place(g);
+      if(t<1&&groups.has(g.id)&&!(drag&&drag.g===g)) requestAnimationFrame(step); else { g.a=0; place(g); }
+    };
+    requestAnimationFrame(step);
+  }
+
+  function paintTools(){
+    const live=started&&!won;
+    $('#startbar').hidden=started;
+    $('#tools').hidden=!started;
+    ['#refBtn','#edgesBtn','#hintBtn'].forEach(s=>{ $(s).disabled=!live; });
+  }
+
+  /* ---------- starting ---------- */
+  function showWhole(){
+    photo.classList.remove('gone');
+    EL.forEach(el=>el.classList.add('hidden'));
+  }
+  /* Start game: the picture becomes pieces where it lies, then they are
+     thrown across the table */
+  function startGame(){
+    groups=new Map(); groupOf=[]; gidNext=1; zTop=10;
+    CUT.pieces.forEach(p=>newGroup(0,0,[p.id]));
+    started=true; won=false; edgesOnly=false;
+    paintEdges(); paintTools();
+    groups.forEach(place);
+    paintVisibility();
+    photo.classList.add('gone');
+    void table.offsetWidth;
+    const at=J.scatter(CUT,R,puzId+':'+Date.now());
+    CUT.pieces.forEach((p,i)=>{
+      const g=groups.get(groupOf[p.id]);
+      EL[p.id].classList.add('fly');
+      EL[p.id].style.transitionDelay=(Math.random()*120).toFixed(0)+'ms';
+      g.x=at[i][0]-p.c*CUT.cw; g.y=at[i][1]-p.r*CUT.ch;
+      place(g);
+    });
+    setTimeout(()=>EL.forEach(el=>{ el.classList.remove('fly'); el.style.transitionDelay=''; }),1150);
+    XW.timer.reset(); XW.timer.start(0);
+    XW.emit('game_start',{puzzleId:puzId,pieces:N});
+    save();
+  }
+  $('#startBtn').onclick=startGame;
+
+  /* ---------- persistence ----------
+     Groups are the whole state. filled/total -- joins made out of joins
+     needed -- feed the archive's progress ring. */
+  function save(){
+    if(!started) return;
+    XW.storage.save(puzId,{
+      cols:CUT.cols, rows:CUT.rows,
+      groups:[...groups.values()].map(g=>[+g.x.toFixed(2),+g.y.toFixed(2),[...g.ids]]),
+      elapsed:XW.timer.secs, completed:won, bg:tableBg,
+      filled:N-groups.size, total:N-1
+    });
+  }
+  function restore(){
+    const st=XW.storage.load(puzId);
+    if(!st||!st.groups||st.cols!==CUT.cols||st.rows!==CUT.rows) return false;
+    groups=new Map(); groupOf=[]; gidNext=1; zTop=10;
+    st.groups.forEach(([x,y,ids])=>newGroup(x,y,ids));
+    if(groupOf.length!==N||groupOf.some(v=>v==null)) return false;
+    if(st.bg&&/^#[0-9a-f]{6}$/i.test(st.bg)) tableBg=st.bg;
+    started=true; won=!!st.completed;
+    XW.timer.start(st.elapsed||0);
+    if(won){ XW.timer.stop(); photo.classList.remove('gone'); }
+    else photo.classList.add('gone');
+    return true;
+  }
+
+  /* ---------- the end screen's promotion ---------- */
+  (function(){
+    const ids=Object.keys(window.GAMES||{}).filter(k=>{
+      const g=window.GAMES[k]; return g&&g.live&&!g.hidden&&k!==XW.gameId; });
+    if(!ids.length)return;
+    let h=0; const seed=iso||puzId;
+    for(let i=0;i<seed.length;i++) h=(Math.imul(h,31)+seed.charCodeAt(i))>>>0;
+    const pid=ids[h%ids.length], pg=window.GAMES[pid];
+    const box=$('#promo');
+    const thumb=document.createElement('div');
+    thumb.className='pthumb';
+    thumb.style.background=pg.tint||'var(--band)';
+    if(pg.tintInk) thumb.style.color=pg.tintInk;
+    thumb.innerHTML=pg.art||'';
+    const body=document.createElement('div'); body.className='pbody';
+    const h3=document.createElement('h3'); h3.textContent=pg.label;
+    const bl=document.createElement('p'); bl.textContent=pg.blurb||'';
+    const go=document.createElement('button');
+    go.type='button'; go.className='pgo'; go.textContent='Play';
+    go.onclick=()=>XW.navigate({gameId:pid});
+    body.appendChild(h3); body.appendChild(bl); body.appendChild(go);
+    box.appendChild(thumb); box.appendChild(body);
+  })();
+  $('#winShare').onclick=()=>{
+    XW.share('copy',XW.shareUrl(),XW.shareText('Jigsaw'));
+    XW.emit('share_clicked',{target:'copy'});
+  };
+
+  /* ---------- settings ---------- */
+  $('#settingsBtn').onclick=()=>{
+    $('#optBg').value=tableBg; $('#optSound').checked=soundOn;
+    XW.openOverlay('settingsOverlay');
+  };
+  $('#bgReset').onclick=()=>{ $('#optBg').value=defaultBg; };
+  $('#applySettings').onclick=()=>{
+    $('#timerPill').classList.toggle('collapsed',!$('#optTimerShown').checked);
+    soundOn=$('#optSound').checked;
+    tableBg=$('#optBg').value||defaultBg; paintBg(); save();
+    XW.closeOverlay($('#settingsOverlay'));
+  };
+  /* clicking the timer hides or shows it, as in the other games */
+  $('#timerPill').addEventListener('click',()=>{
+    const tp=$('#timerPill'), hide=!tp.classList.contains('collapsed');
+    tp.classList.toggle('collapsed',hide); $('#optTimerShown').checked=!hide;
+    XW.announce(hide?'Timer hidden':'Timer shown');
+  });
+  $('#piecesPill').style.cursor='default';
+
+  XW.wireChrome({
+    title:()=>'Jigsaw',
+    menu:act=>{
+      if(act==='more')return XW.goArchive();
+      if(act==='howto')return XW.openOverlay('howtoOverlay');
+      if(act==='support')return XW.openOverlay('supportOverlay');
+      if(act==='save'){ save(); XW.dialog('Save','Your puzzle progress is saved.'); return; }
+      if(act==='restart'){
+        XW.dialog('Start Again','Put the picture back together and start again?',()=>{
+          XW.storage.clear(puzId); XW.timer.reset(); XW.timer.stop();
+          started=false; won=false; edgesOnly=false; showRef(false);
+          tableBg=defaultBg; paintBg();
+          paintEdges(); paintTools(); showWhole();
+        },{ok:'Start again',cancel:'Cancel'});
+      }
+    }
+  });
+  $('#dlgClose').onclick=()=>XW.closeOverlay($('#dialogOverlay'));
+  $('#dlgOk').onclick=()=>{ const a=XW.dlgAction; XW.closeOverlay($('#dialogOverlay')); if(a)a(); };
+
+  $('#ticketNo').textContent=(function(){
+    let h=0; for(let i=0;i<puzId.length;i++) h=(Math.imul(h,31)+puzId.charCodeAt(i))>>>0;
+    const hex=n=>((n>>>0).toString(16)).slice(-7).padStart(7,'0');
+    return 'lat-'+hex(h)+'-'+hex(h^0x9e3779b9);
+  })();
+  $('#copyrightLine').textContent='© '+new Date().getFullYear()+' Tribune Content Agency, LLC';
+
+  /* ---------- go ---------- */
+  XW.timer.onTick=s=>{ $('#timer').textContent=XW.fmtTime(s); };
+  const resumed=restore();
+  if(!resumed){ XW.timer.start(0); XW.timer.stop(); }
+  paintBg(); fit();
+  groups.forEach(place);
+  paintEdges(); paintTools(); paintVisibility();
+  if(!resumed) showWhole();
+  setInterval(save,10000);
+  if(res.substituted) setTimeout(()=>XW.toast('“'+res.substituted+'” is not available — showing the latest puzzle'),400);
+})();
+</script>
+</body>
+</html>
